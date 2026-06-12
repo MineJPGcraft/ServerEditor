@@ -1,4 +1,5 @@
 import pg from "pg";
+import redis from "redis";
 export const db=new pg.Pool({
     user: process.env.DB_USER||'postgres',
     password: process.env.DB_PASSWORD||'password',
@@ -7,6 +8,7 @@ export const db=new pg.Pool({
     database: process.env.DB_NAME||'serverlist',
     max:20
 });
+export const rd=new redis.createClient({url:process.env.REDIS_URL||'redis://localhost:6379'});
 export async function dbinit()
 {
     await db.query(`CREATE TABLE IF NOT EXISTS server (

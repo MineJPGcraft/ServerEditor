@@ -11,7 +11,8 @@
     "cookie-parser": "^1.4.7",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "pg": "^8.18.0"
+    "pg": "^8.18.0",
+    "redis": "^6.0.0"
   },
   "scripts": {
     "backend": "node src/index.js",

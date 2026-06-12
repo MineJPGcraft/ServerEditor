@@ -2,7 +2,7 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import {db,dbinit} from "./db.js";
+import {db,dbinit,rd} from "./db.js";
 import cookieParser from "cookie-parser";
 import {authRouter,checkSession} from "./auth.js";
 import {admin_router} from "./admin.js";
@@ -13,15 +13,51 @@ import {setupRouter} from "./setup.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
+
 const port = process.env.PORT || 8080;
 await dbinit();
+await rd.connect();
 if(!fs.existsSync("data")) {fs.mkdirSync("data");}
 app.use(express.json());
 app.use(cookieParser());
 app.use('/api/oidcConfig/admin',checkSession(3));
 app.use('/api/oidcConfig',oidcConfigRouter);
 app.use('/api/auth',authRouter);
-app.get("/api/getjson",async (req, res) => {
+app.get("/api/getjson",async (req,res)=>{
+    try
+    {
+        try
+        {
+            let json=await rd.get("server");
+            if(json)
+            {
+                return res.json(JSON.parse(json));
+            }
+            throw "qwq";
+        }
+        catch(err)
+        {
+            let json=((await db.query("SELECT * FROM server;")).rows);
+            for(let i = 0; i < json.length; i++)
+            {
+                json[i].id=i;
+            }
+            await rd.set("server", JSON.stringify(json));
+            res.json(json);
+        }
+    }
+    catch(err)
+    {
+        console.log(err);
+        res.status(500).send(err.message);
+    }
+});
+app.use('/api/admin',checkSession(2));
+app.use('/api/admin',admin_router);
+app.use('/api/setup', setupRouter);
+app.use('/api/request',checkSession(1));
+
+app.get("/api/request/getjson",async (req, res) => {
     try
     {
         let json=((await db.query("SELECT * FROM server;")).rows);
@@ -37,10 +73,6 @@ app.get("/api/getjson",async (req, res) => {
         res.status(500).send(err.message);
     }
 });
-app.use('/api/admin',checkSession(2));
-app.use('/api/admin',admin_router);
-app.use('/api/setup', setupRouter);
-app.use('/api/request',checkSession(1));
 app.use('/api/request',userRequestRouter);
 // 静态文件服务 - 提供前端构建文件
 const distPath = path.join(__dirname, '../dist');

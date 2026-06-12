@@ -219,6 +219,7 @@ yarn dev
 | `DB_HOST` | `localhost` | 数据库主机 |
 | `DB_PORT` | `5432` | 数据库端口 |
 | `DB_NAME` | `serverlist` | 数据库名称 |
+| `REDIS_URL` | `redis://localhost:6379` | Redis连接地址 | 
 
 ## Docker 部署
 

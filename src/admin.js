@@ -1,5 +1,5 @@
 import express from "express";
-import {db} from "./db.js";
+import {db,rd} from "./db.js";
 export const admin_router = express.Router();
 admin_router.post("/user/edit", async(req, res) => {
     if(req.sessionPerm < 3) return res.status(403).send("Permission denied");
@@ -78,6 +78,7 @@ admin_router.post("/edit", async(req, res) => {
         {
             return res.status(404).send("Server not found");
         }
+        await rd.del("server");
         res.send("Success.");
     }
     catch(err)
@@ -98,6 +99,7 @@ admin_router.post("/create", async(req, res) => {
     (name,type,version,icon,description,link,IP)
     VALUES ($1,$2,$3,$4,$5,$6,$7)
     RETURNING uuid;`,[req.body.name,req.body.type,req.body.version,req.body.icon,req.body.description,req.body.link,req.body.IP||null]);
+        await rd.del("server");
         res.send(result.rows[0].uuid);
     }
     catch(err)
@@ -118,6 +120,7 @@ admin_router.post("/delete", async(req, res) => {
         {
             return res.status(404).send("Server not found");
         }
+        await rd.del("server");
         res.send("Success.");
     }
     catch(err)
@@ -208,6 +211,7 @@ admin_router.post("/request/approve", async(req, res) => {
             await db.query(
                 "UPDATE server_requests SET status='approved', updated_at=now() WHERE id=$1;", [id]
             );
+            await rd.del("server");
             return res.send("Success");
         }
     } catch(err) {
