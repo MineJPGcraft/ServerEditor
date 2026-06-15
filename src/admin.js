@@ -255,3 +255,15 @@ admin_router.post("/request/submit", async(req, res) => {
         res.status(500).send(err.message);
     }
 });
+
+admin_router.post("/tag/:tag/edit",async(req, res) => {
+    try {
+        let tag=req.body.tag;
+        await db.query("UPDATE tags SET tag=$1 WHERE name=$2",[tag,req.params.tag]);
+        await rd.del("server");
+        res.send("Success");
+    }
+    catch (err) {
+        res.status(500).send(err.message);
+    }
+});

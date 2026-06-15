@@ -56,4 +56,14 @@ export async function dbinit()
     updated_at timestamptz NOT NULL DEFAULT now(),
     reject_reason text
 );`);
+    await db.query(`create table if not exists tags (
+    name text not null PRIMARY KEY,
+    tag text NOT NULL
+);`);
+    await db.query(`INSERT INTO tags (name,tag) 
+VALUES ('types', '[]') 
+ON CONFLICT (name) DO NOTHING;`);
+    await db.query(`INSERT INTO tags (name,tag) 
+VALUES ('versions', '[]') 
+ON CONFLICT (name) DO NOTHING;`);
 }

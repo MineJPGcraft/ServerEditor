@@ -13,7 +13,6 @@ import {setupRouter} from "./setup.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-
 const port = process.env.PORT || 8080;
 await dbinit();
 await rd.connect();
@@ -37,13 +36,7 @@ app.get("/api/getjson",async (req,res)=>{
         }
         catch(err)
         {
-            let json=((await db.query("SELECT * FROM server;")).rows);
-            for(let i = 0; i < json.length; i++)
-            {
-                json[i].id=i;
-            }
-            await rd.set("server", JSON.stringify(json));
-            res.json(json);
+           await getjson(req,res);
         }
     }
     catch(err)
@@ -56,23 +49,7 @@ app.use('/api/admin',checkSession(2));
 app.use('/api/admin',admin_router);
 app.use('/api/setup', setupRouter);
 app.use('/api/request',checkSession(1));
-
-app.get("/api/request/getjson",async (req, res) => {
-    try
-    {
-        let json=((await db.query("SELECT * FROM server;")).rows);
-        for(let i = 0; i < json.length; i++)
-        {
-            json[i].id=i;
-        }
-        res.json(json);
-    }
-    catch(err)
-    {
-        console.log(err);
-        res.status(500).send(err.message);
-    }
-});
+app.get("/api/request/getjson",getjson);
 app.use('/api/request',userRequestRouter);
 // 静态文件服务 - 提供前端构建文件
 const distPath = path.join(__dirname, '../dist');
@@ -93,3 +70,25 @@ let server=app.listen(port, () => {
     console.log("Server started on port " + port);
 });
 server.on("error", console.error);
+async function getjson(req,res)
+{
+    try
+    {
+        let json=((await db.query("SELECT * FROM server;")).rows);
+        for(let i = 0; i < json.length; i++)
+        {
+            json[i].id=i;
+        }
+        let qwq={};
+        qwq.servers=json;
+        qwq.types=(await db.query("SELECT tag from tags WHERE name='types'")).rows[0].tag;
+        qwq.versions=(await db.query("SELECT tag from tags WHERE name='versions'")).rows[0].tag;
+        await rd.set("server", JSON.stringify(qwq));
+        res.json(qwq);
+    }
+    catch(err)
+    {
+        console.log(err);
+        res.status(500).send(err.message);
+    }
+}
