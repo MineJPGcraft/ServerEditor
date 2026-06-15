@@ -1,6 +1,6 @@
 # 阶段1：构建前端
 FROM node:20-alpine AS frontend-builder
-WORKDIR /app
+WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install && npm cache clean --force
 COPY frontend/ ./
