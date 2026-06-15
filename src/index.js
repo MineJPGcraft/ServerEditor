@@ -45,11 +45,33 @@ app.get("/api/getjson",async (req,res)=>{
         res.status(500).send(err.message);
     }
 });
+app.get("/api/getjson-fork",async (req,res)=>{
+    try
+    {
+        try
+        {
+            let json=await rd.get("server");
+            if(json)
+            {
+                return res.json(JSON.parse(json));
+            }
+            throw "qwq";
+        }
+        catch(err)
+        {
+            await getjson(req,res);
+        }
+    }
+    catch(err)
+    {
+        console.log(err);
+        res.status(500).send(err.message);
+    }
+});
 app.use('/api/admin',checkSession(2));
 app.use('/api/admin',admin_router);
 app.use('/api/setup', setupRouter);
 app.use('/api/request',checkSession(1));
-app.get("/api/request/getjson",getjson);
 app.use('/api/request',userRequestRouter);
 // 静态文件服务 - 提供前端构建文件
 const distPath = path.join(__dirname, '../dist');
