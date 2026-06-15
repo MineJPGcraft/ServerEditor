@@ -81,8 +81,8 @@ async function getjson(req,res)
         }
         let qwq={};
         qwq.servers=json;
-        qwq.types=(await db.query("SELECT tag from tags WHERE name='types'")).rows[0].tag;
-        qwq.versions=(await db.query("SELECT tag from tags WHERE name='versions'")).rows[0].tag;
+        qwq.types=JSON.parse((await db.query("SELECT tag from tags WHERE name='types'")).rows[0].tag);
+        qwq.versions=JSON.parse((await db.query("SELECT tag from tags WHERE name='versions'")).rows[0].tag);
         await rd.set("server", JSON.stringify(qwq));
         res.json(qwq);
     }

@@ -258,7 +258,7 @@ admin_router.post("/request/submit", async(req, res) => {
 
 admin_router.post("/tag/:tag/edit",async(req, res) => {
     try {
-        let tag=req.body.tag;
+        let tag=JSON.stringify(req.body.tag);
         await db.query("UPDATE tags SET tag=$1 WHERE name=$2",[tag,req.params.tag]);
         await rd.del("server");
         res.send("Success");
