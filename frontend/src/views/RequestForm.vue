@@ -1,305 +1,241 @@
-<template>
-  <div class="request-form-container">
-    <div class="header">
-      <n-button quaternary @click="router.push('/requests')">← 返回申请列表</n-button>
-      <h1>{{ id ? '编辑申请草稿' : '新建申请' }}</h1>
-    </div>
+<script setup lang="ts">
+import { ref, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { api } from '@/api'
+import { useServers } from '@/composables/useServers'
+import { useAuth } from '@/composables/useAuth'
+import Combobox from '@/components/Combobox.vue'
+import { toast } from 'vue-sonner'
+import { Save, Send } from 'lucide-vue-next'
 
-    <n-form
-      ref="formRef"
-      :model="formData"
-      :rules="rules"
-      label-placement="top"
-      class="form"
-    >
-      <n-form-item label="申请类型" path="req_type">
-        <n-select
-          v-model:value="formData.req_type"
-          :options="reqTypeOptions"
-          :disabled="!!id"
-          placeholder="请选择申请类型"
-        />
-      </n-form-item>
-
-      <n-form-item
-        v-if="formData.req_type === 'edit'||formData.req_type === 'delete'"
-        label="目标服务器 UUID"
-        path="target_uuid"
-      >
-        <n-select
-          v-model:value="formData.target_uuid"
-          :options="serverOptions"
-          filterable
-          clearable
-          placeholder="请选择或输入目标服务器 UUID"
-          :disabled="!!id"
-        />
-      </n-form-item>
-
-      <n-form-item label="名称" path="name" v-if="formData.req_type !== 'delete'">
-        <n-input v-model:value="formData.name" placeholder="请输入服务器名称" />
-      </n-form-item>
-
-      <n-form-item label="类型" path="type" v-if="formData.req_type !== 'delete'">
-        <n-input v-model:value="formData.type" placeholder="请输入服务器类型" />
-      </n-form-item>
-
-      <n-form-item label="版本" path="version" v-if="formData.req_type !== 'delete'">
-        <n-input v-model:value="formData.version" placeholder="请输入服务器版本" />
-      </n-form-item>
-
-      <n-form-item label="图标URL" path="icon" v-if="formData.req_type !== 'delete'">
-        <n-input v-model:value="formData.icon" placeholder="https://example.com/icon.png" />
-      </n-form-item>
-
-      <n-form-item label="链接" path="link" v-if="formData.req_type !== 'delete'">
-        <n-input v-model:value="formData.link" placeholder="https://example.com" />
-      </n-form-item>
-
-      <n-form-item label="IP地址（可选）" path="IP" v-if="formData.req_type !== 'delete'">
-        <n-input v-model:value="formData.IP" placeholder="请输入IP地址或域名（可选）" />
-      </n-form-item>
-
-      <n-form-item label="描述" path="description" v-if="formData.req_type !== 'delete'">
-        <n-input
-          v-model:value="formData.description"
-          type="textarea"
-          placeholder="请输入服务器描述"
-          :rows="3"
-        />
-      </n-form-item>
-
-      <div class="form-actions">
-        <n-button @click="router.push('/requests')">取消</n-button>
-        <n-button @click="handleSaveDraft" :loading="saving">保存草稿</n-button>
-        <n-button type="primary" @click="handleSubmitRequest" :loading="submitting">提交审核</n-button>
-      </div>
-    </n-form>
-  </div>
-</template>
-
-<script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { NButton, NForm, NFormItem, NInput, NSelect, useMessage } from 'naive-ui'
-import { createRequest, editRequest, submitRequest, getMyRequests } from '@/api/server'
-import { getServers } from '@/api/server'
-
-const props = defineProps({ id: String })
-const router = useRouter()
 const route = useRoute()
-const message = useMessage()
+const router = useRouter()
+const { servers, types, versions, fetchServers } = useServers()
+const { isLoggedIn } = useAuth()
 
-const formRef = ref(null)
-const saving = ref(false)
-const submitting = ref(false)
-const servers = ref([])
-const savedId = ref(props.id || null)
+// 编辑已有草稿：/requests/:id/edit
+const requestId = computed(() => route.params.id as string | undefined)
+// 基于已有服务器发起申请：/requests/new?target=<uuid>&mode=edit|delete
+const target = computed(() => (route.query.target as string) || undefined)
+const mode = computed(() => (route.query.mode as string) || 'edit')
 
-const formData = reactive({
-  req_type: 'create',
-  target_uuid: null,
+const reqType = ref<'create' | 'edit' | 'delete'>('create')
+const targetUuid = ref<string | null>(null)
+
+const form = ref({
   name: '',
   type: '',
   version: '',
   icon: '',
+  description: '',
   link: '',
   IP: '',
-  description: ''
 })
 
-const reqTypeOptions = [
-  { label: '新建服务器', value: 'create' },
-  { label: '编辑现有服务器', value: 'edit'},
-  { label: '移除现有服务器', value: 'delete' }
-]
+const loading = ref(false)
 
-const serverOptions = computed(() =>
-  servers.value.map(s => ({ label: `${s.name} (${s.uuid})`, value: s.uuid }))
-)
+const isDelete = computed(() => reqType.value === 'delete')
 
-// 选择目标服务器后自动填充字段（仅新建模式，不影响编辑已有草稿）
-watch(() => formData.target_uuid, (uuid) => {
-  if (props.id || !uuid) return
-  const server = servers.value.find(s => s.uuid === uuid)
-  if (server) {
-    formData.name = server.name || ''
-    formData.type = server.type || ''
-    formData.version = server.version || ''
-    formData.icon = server.icon || ''
-    formData.link = server.link || ''
-    formData.IP = server.IP || ''
-    formData.description = server.description || ''
-  }
+const pageTitle = computed(() => {
+  if (requestId.value) return '编辑申请'
+  if (target.value && isDelete.value) return '申请删除服务器'
+  if (target.value) return '申请修改服务器'
+  return '新建申请'
 })
-
-const urlValidator = (rule, value) => {
-  if (!value) return new Error('此字段必填')
-  if (!/^https?:\/\/.+/.test(value)) return new Error('请输入有效的 URL（以 http:// 或 https:// 开头）')
-  return true
-}
-
-const rules = {
-  req_type: [{ required: true, message: '请选择申请类型', trigger: 'change' }],
-  target_uuid: [{
-    validator: (rule, value) => {
-      if (formData.req_type === 'edit' && !value) return new Error('编辑类型需填写目标服务器 UUID')
-      return true
-    },
-    trigger: 'change'
-  }],
-  name: [{ required: true, message: '此字段必填', trigger: 'blur' }],
-  type: [{ required: true, message: '此字段必填', trigger: 'blur' }],
-  version: [{ required: true, message: '此字段必填', trigger: 'blur' }],
-  icon: [{ validator: urlValidator, trigger: 'blur' }],
-  link: [{ validator: urlValidator, trigger: 'blur' }],
-  description: [{ required: true, message: '此字段必填', trigger: 'blur' }]
-}
 
 onMounted(async () => {
-  try {
-    servers.value = await getServers()
-  } catch {}
-
-  // Pre-fill from query params (from context menu "申请编辑")
-  if (!props.id) {
-    const qType = route.query.type
-    const qUuid = route.query.uuid
-    if (qType === 'edit' && qUuid) {
-      formData.req_type = 'edit'
-      formData.target_uuid = qUuid
-      // Pre-fill server data if found
-      const server = servers.value.find(s => s.uuid === qUuid)
-      if (server) {
-        formData.name = server.name || ''
-        formData.type = server.type || ''
-        formData.version = server.version || ''
-        formData.icon = server.icon || ''
-        formData.link = server.link || ''
-        formData.IP = server.IP || ''
-        formData.description = server.description || ''
-      }
-    }
+  // 未登录用户不能发起申请，跳转登录
+  if (!isLoggedIn.value) {
+    toast.info('请先登录')
+    router.replace('/login')
     return
   }
-
-  // Load draft for editing
-  try {
-    const list = await getMyRequests()
-    const draft = list.find(r => r.id === props.id)
-    if (draft) {
-      formData.req_type = draft.req_type
-      formData.target_uuid = draft.target_uuid || null
-      Object.assign(formData, draft.data)
+  await fetchServers()
+  if (requestId.value) {
+    // 加载已有草稿
+    try {
+      const requests = await api.requests.list()
+      const existing = requests.find((r: any) => r.id === requestId.value)
+      if (existing) {
+        form.value = {
+          name: existing.data.name || '',
+          type: existing.data.type || '',
+          version: existing.data.version || '',
+          icon: existing.data.icon || '',
+          description: existing.data.description || '',
+          link: existing.data.link || '',
+          IP: existing.data.IP || '',
+        }
+        reqType.value = existing.req_type
+        targetUuid.value = existing.target_uuid
+      }
+    } catch {
+      toast.error('获取申请数据失败')
     }
-  } catch (e) {
-    message.error('加载草稿失败')
+  } else if (target.value) {
+    // 基于服务器发起修改/删除申请
+    const server = servers.value.find(s => s.uuid === target.value)
+    if (server) {
+      form.value = {
+        name: server.name,
+        type: server.type,
+        version: server.version,
+        icon: server.icon,
+        description: server.description,
+        link: server.link,
+        IP: server.IP || '',
+      }
+      reqType.value = mode.value === 'delete' ? 'delete' : 'edit'
+      targetUuid.value = target.value
+    } else {
+      toast.error('未找到目标服务器')
+      router.replace('/requests')
+    }
   }
 })
 
-const getServerData = () => ({
-  name: formData.name,
-  type: formData.type,
-  version: formData.version,
-  icon: formData.icon,
-  link: formData.link,
-  description: formData.description,
-  ...(formData.IP ? { IP: formData.IP } : {})
-})
-
-const handleSaveDraft = () => {
-  formRef.value.validate(async (errors) => {
-    if (errors) return
-    saving.value = true
-    try {
-      if (savedId.value) {
-        await editRequest({
-          id: savedId.value,
-          data: getServerData(),
-          req_type: formData.req_type,
-          target_uuid: formData.target_uuid || undefined
-        })
-      } else {
-        const result = await createRequest({
-          req_type: formData.req_type,
-          target_uuid: formData.target_uuid || undefined,
-          data: getServerData()
-        })
-        savedId.value = result.id
-      }
-      message.success('草稿已保存')
-      router.push('/requests')
-    } catch (e) {
-      message.error('保存失败：' + (e.response?.data || e.message))
-    } finally {
-      saving.value = false
-    }
-  })
+async function buildPayload() {
+  // delete 类型后端只需 target_uuid，data 可空
+  const data = isDelete.value ? {} : { ...form.value, IP: form.value.IP || null }
+  return {
+    req_type: reqType.value,
+    target_uuid: targetUuid.value || undefined,
+    data,
+  }
 }
 
-const handleSubmitRequest = () => {
-  formRef.value.validate(async (errors) => {
-    if (errors) return
-    submitting.value = true
-    try {
-      let reqId = savedId.value
-      if (reqId) {
-        await editRequest({
-          id: reqId,
-          data: getServerData(),
-          req_type: formData.req_type,
-          target_uuid: formData.target_uuid || undefined
-        })
-      } else {
-        const result = await createRequest({
-          req_type: formData.req_type,
-          target_uuid: formData.target_uuid || undefined,
-          data: getServerData()
-        })
-        reqId = result.id
-        savedId.value = reqId
-      }
-      await submitRequest(reqId)
-      message.success('已提交审核')
+async function saveDraft() {
+  loading.value = true
+  try {
+    const payload = await buildPayload()
+    if (requestId.value) {
+      await api.requests.edit({
+        id: requestId.value,
+        data: payload.data,
+        req_type: reqType.value,
+        target_uuid: targetUuid.value || undefined,
+      })
+      toast.success('草稿已保存')
+    } else {
+      await api.requests.create(payload)
+      toast.success('草稿已创建')
       router.push('/requests')
-    } catch (e) {
-      if (e.response?.status === 429) {
-        message.error('待审核申请已达上限，请等待审核完成后再提交')
-      } else {
-        message.error('提交失败：' + (e.response?.data || e.message))
-      }
-    } finally {
-      submitting.value = false
     }
-  })
+  } catch (e: any) {
+    toast.error(e.response?.data || '保存失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function submitRequest() {
+  loading.value = true
+  try {
+    const payload = await buildPayload()
+    if (requestId.value) {
+      await api.requests.edit({
+        id: requestId.value,
+        data: payload.data,
+        req_type: reqType.value,
+        target_uuid: targetUuid.value || undefined,
+      })
+      await api.requests.submit(requestId.value)
+    } else {
+      const result = await api.requests.create(payload)
+      await api.requests.submit(result.id)
+    }
+    toast.success('已提交审核')
+    router.push('/requests')
+  } catch (e: any) {
+    toast.error(e.response?.data || '提交失败')
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
-<style scoped>
-.request-form-container {
-  max-width: 700px;
-  margin: 0 auto;
-  padding: 24px;
-}
-.header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-.header h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  flex: 1;
-}
-.form {
-  margin-top: 8px;
-}
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-}
-</style>
+<template>
+  <div class="max-w-lg mx-auto space-y-6">
+    <h1 class="text-2xl font-bold">{{ pageTitle }}</h1>
+
+    <div v-if="isDelete" class="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3 space-y-2">
+      <p class="text-sm text-destructive font-medium">
+        确认要申请删除服务器 "{{ form.name }}" 吗？
+      </p>
+      <p class="text-xs text-muted-foreground">
+        删除申请提交后由管理员审核，审核通过后该服务器将被永久删除。
+      </p>
+    </div>
+    <div v-else-if="reqType === 'edit'" class="rounded-md border border-blue-500/30 bg-blue-500/5 px-3 py-2 text-xs text-muted-foreground">
+      修改申请：提交后将由管理员审核，审核通过后才会应用到服务器。
+    </div>
+
+    <!-- 删除申请：只展示目标信息，不展示表单 -->
+    <div v-if="!isDelete" class="space-y-4">
+      <div class="space-y-1.5">
+        <label class="text-sm font-medium">服务器名称</label>
+        <input v-model="form.name" required class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">类型</label>
+          <Combobox v-model="form.type" :options="types" placeholder="选择或输入类型" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">版本</label>
+          <Combobox v-model="form.version" :options="versions" placeholder="选择或输入版本" />
+        </div>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-sm font-medium">图标 URL</label>
+        <input v-model="form.icon" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" placeholder="https://example.com/icon.png" />
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-sm font-medium">描述</label>
+        <textarea v-model="form.description" rows="4" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm" placeholder="服务器描述..." />
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-sm font-medium">链接</label>
+        <input v-model="form.link" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" placeholder="https://..." />
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-sm font-medium">IP (可选)</label>
+        <input v-model="form.IP" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-3">
+      <button
+        @click="router.back()"
+        class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent"
+      >
+        取消
+      </button>
+      <button
+        v-if="!isDelete"
+        @click="saveDraft"
+        :disabled="loading"
+        class="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm hover:bg-accent"
+      >
+        <Save class="h-4 w-4" />
+        保存草稿
+      </button>
+      <button
+        @click="submitRequest"
+        :disabled="loading"
+        :class="[
+          'inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm text-primary-foreground',
+          isDelete ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90',
+        ]"
+      >
+        <Send class="h-4 w-4" />
+        {{ isDelete ? '提交删除申请' : '提交审核' }}
+      </button>
+    </div>
+  </div>
+</template>

@@ -1,183 +1,144 @@
-<template>
-  <div class="request-list-container">
-    <div class="header">
-      <n-button quaternary @click="router.push('/')">← 返回列表</n-button>
-      <h1>我的申请</h1>
-      <n-button type="primary" @click="router.push('/requests/new')">新建申请</n-button>
-    </div>
-
-    <n-spin :show="loading">
-      <n-empty v-if="!loading && requests.length === 0" description="暂无申请" style="padding: 60px 0" />
-      <n-data-table
-        v-else
-        :columns="columns"
-        :data="requests"
-        :row-key="row => row.id"
-      />
-    </n-spin>
-
-    <n-modal v-model:show="showRejectReason" preset="dialog" title="拒绝理由">
-      <div>{{ selectedRejectReason || '（无）' }}</div>
-      <template #action>
-        <n-button @click="showRejectReason = false">关闭</n-button>
-      </template>
-    </n-modal>
-  </div>
-</template>
-
-<script setup>
-import { ref, onMounted, h } from 'vue'
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { api, type ServerRequest } from '@/api'
 import { useRouter } from 'vue-router'
-import {
-  NButton, NSpin, NEmpty, NDataTable, NTag, NModal, NSpace, useMessage, useDialog
-} from 'naive-ui'
-import { getMyRequests, submitRequest, cancelRequest, deleteRequest } from '@/api/server'
+import { toast } from 'vue-sonner'
+import RequestStatusBadge from '@/components/RequestStatusBadge.vue'
+import ReqTypeBadge from '@/components/ReqTypeBadge.vue'
+import RequestServerName from '@/components/RequestServerName.vue'
+import { Plus, Edit, Send, XCircle, Trash2 } from 'lucide-vue-next'
 
 const router = useRouter()
-const message = useMessage()
-const dialog = useDialog()
-
+const requests = ref<ServerRequest[]>([])
 const loading = ref(true)
-const requests = ref([])
-const showRejectReason = ref(false)
-const selectedRejectReason = ref('')
 
-const statusTagType = {
-  draft: 'default',
-  pending: 'info',
-  approved: 'success',
-  rejected: 'error'
-}
-const statusLabel = {
-  draft: '草稿',
-  pending: '审核中',
-  approved: '已通过',
-  rejected: '已拒绝'
-}
-const reqTypeLabel = {
-  create: '新建服务器',
-  edit: '编辑服务器',
-  delete: '移除服务器'
-}
+onMounted(fetchRequests)
 
-const fetchRequests = async () => {
-  loading.value = true
+async function fetchRequests() {
   try {
-    requests.value = await getMyRequests()
-  } catch (e) {
-    message.error('加载失败：' + (e.response?.data || e.message))
+    loading.value = true
+    requests.value = await api.requests.list()
+  } catch (e: any) {
+    toast.error(e.response?.data || '获取申请列表失败')
   } finally {
     loading.value = false
   }
 }
 
-const handleSubmit = async (row) => {
+async function handleSubmit(id: string) {
   try {
-    await submitRequest(row.id)
-    message.success('已提交审核')
-    await fetchRequests()
-  } catch (e) {
-    const msg = e.response?.data || e.message
-    if (e.response?.status === 429) {
-      message.error('待审核申请已达上限，请等待审核完成')
-    } else {
-      message.error('提交失败：' + msg)
-    }
+    await api.requests.submit(id)
+    toast.success('已提交审核')
+    fetchRequests()
+  } catch (e: any) {
+    toast.error(e.response?.data || '提交失败')
   }
 }
 
-const handleCancel = async (row) => {
+async function handleCancel(id: string) {
   try {
-    await cancelRequest(row.id)
-    message.success('已撤回')
-    await fetchRequests()
-  } catch (e) {
-    message.error('撤回失败：' + (e.response?.data || e.message))
+    await api.requests.cancel(id)
+    toast.success('已撤回')
+    fetchRequests()
+  } catch (e: any) {
+    toast.error(e.response?.data || '撤回失败')
   }
 }
 
-const handleDelete = (row) => {
-  dialog.warning({
-    title: '确认删除',
-    content: '确定要删除此草稿吗？',
-    positiveText: '确认',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      try {
-        await deleteRequest(row.id)
-        message.success('已删除')
-        await fetchRequests()
-      } catch (e) {
-        message.error('删除失败：' + (e.response?.data || e.message))
-      }
-    }
-  })
-}
-
-const columns = [
-  {
-    title: '类型',
-    key: 'req_type',
-    render: (row) => reqTypeLabel[row.req_type] || row.req_type
-  },
-  {
-    title: '目标服务器',
-    key: 'target_uuid',
-    render: (row) => row.target_uuid ? h('span', { style: 'font-family: monospace; font-size: 12px' }, row.target_uuid) : '—'
-  },
-  {
-    title: '服务器名称',
-    key: 'data',
-    render: (row) => row.data?.name || '—'
-  },
-  {
-    title: '状态',
-    key: 'status',
-    render: (row) => h(NTag, { type: statusTagType[row.status] || 'default' }, { default: () => statusLabel[row.status] || row.status })
-  },
-  {
-    title: '创建时间',
-    key: 'created_at',
-    render: (row) => new Date(row.created_at).toLocaleString()
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    render: (row) => {
-      const btns = []
-      if (row.status === 'draft') {
-        btns.push(h(NButton, { size: 'small', type: 'primary', onClick: () => handleSubmit(row) }, { default: () => '提交审核' }))
-        btns.push(h(NButton, { size: 'small', onClick: () => router.push(`/requests/edit/${row.id}`) }, { default: () => '编辑' }))
-        btns.push(h(NButton, { size: 'small', type: 'error', onClick: () => handleDelete(row) }, { default: () => '删除' }))
-      } else if (row.status === 'pending') {
-        btns.push(h(NButton, { size: 'small', onClick: () => handleCancel(row) }, { default: () => '撤回' }))
-      } else if (row.status === 'rejected') {
-        btns.push(h(NButton, { size: 'small', onClick: () => { selectedRejectReason.value = row.reject_reason; showRejectReason.value = true } }, { default: () => '查看理由' }))
-        btns.push(h(NButton, { size: 'small', type: 'primary', onClick: () => router.push(`/requests/edit/${row.id}`) }, { default: () => '重新编辑' }))
-      }
-      return h(NSpace, {}, { default: () => btns })
-    }
+async function handleDelete(id: string) {
+  if (!confirm('确定要删除这个草稿？')) return
+  try {
+    await api.requests.delete(id)
+    toast.success('已删除')
+    fetchRequests()
+  } catch (e: any) {
+    toast.error(e.response?.data || '删除失败')
   }
-]
-
-onMounted(fetchRequests)
+}
 </script>
 
-<style scoped>
-.request-list-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px;
-}
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-.header h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-}
-</style>
+<template>
+  <div class="space-y-6">
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-bold">我的申请</h1>
+      <button
+        @click="router.push('/requests/new')"
+        class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+      >
+        <Plus class="h-4 w-4" />
+        新建申请
+      </button>
+    </div>
+
+    <div v-if="loading" class="flex items-center justify-center py-20">
+      <div class="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
+    </div>
+
+    <div v-else-if="requests.length === 0" class="text-center py-20 text-muted-foreground">
+      <p>暂无申请记录</p>
+      <button @click="router.push('/requests/new')" class="text-primary hover:underline mt-2 text-sm">去创建第一个申请</button>
+    </div>
+
+    <div v-else class="rounded-md border">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b bg-muted/50">
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">服务器名</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">操作类型</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">状态</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">创建时间</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="req in requests" :key="req.id" class="border-b last:border-0">
+            <td class="px-4 py-3"><RequestServerName :req="req" /></td>
+            <td class="px-4 py-3"><ReqTypeBadge :type="req.req_type" /></td>
+            <td class="px-4 py-3"><RequestStatusBadge :status="req.status" /></td>
+            <td class="px-4 py-3 text-sm text-muted-foreground">{{ new Date(req.created_at).toLocaleDateString('zh-CN') }}</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center justify-end gap-1">
+                <button
+                  v-if="req.status === 'draft' || req.status === 'rejected'"
+                  @click="router.push(`/requests/${req.id}/edit`)"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-accent"
+                  title="编辑"
+                >
+                  <Edit class="h-3 w-3" />
+                  编辑
+                </button>
+                <button
+                  v-if="req.status === 'draft'"
+                  @click="handleSubmit(req.id)"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-green-500 hover:bg-green-500/10"
+                  title="提交"
+                >
+                  <Send class="h-3 w-3" />
+                  提交
+                </button>
+                <button
+                  v-if="req.status === 'pending'"
+                  @click="handleCancel(req.id)"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-yellow-500 hover:bg-yellow-500/10"
+                  title="撤回"
+                >
+                  <XCircle class="h-3 w-3" />
+                  撤回
+                </button>
+                <button
+                  v-if="req.status === 'draft'"
+                  @click="handleDelete(req.id)"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                  title="删除"
+                >
+                  <Trash2 class="h-3 w-3" />
+                  删除
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</template>

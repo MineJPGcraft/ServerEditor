@@ -1,319 +1,158 @@
-<template>
-  <div class="oidc-admin-container">
-    <div class="header">
-      <n-button text @click="router.push('/')">← 返回</n-button>
-      <h1>OIDC 配置管理</h1>
-      <n-button type="primary" @click="openCreateDialog">添加提供商</n-button>
-    </div>
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { api, type OidcProviderAdmin } from '@/api'
+import { toast } from 'vue-sonner'
+import OidcForm from '@/components/OidcForm.vue'
+import { Plus, RefreshCw, Edit, Trash2, Key } from 'lucide-vue-next'
 
-    <n-spin :show="loading">
-      <n-empty v-if="providers.length === 0 && !loading" description="暂无 OIDC 提供商" style="padding: 60px 0" />
-      <div v-else class="provider-list">
-        <n-card
-            v-for="p in providers"
-            :key="p.id"
-            class="provider-card"
-        >
-          <div class="provider-header">
-            <div>
-              <div class="provider-name">{{ p.name }}</div>
-              <div class="provider-id">Client ID: {{ p.id }}</div>
-            </div>
-            <n-space>
-              <n-button size="small" @click="openEditDialog(p)">编辑</n-button>
-              <n-button size="small" type="error" @click="handleDelete(p)">删除</n-button>
-            </n-space>
-          </div>
-          <n-descriptions :column="1" size="small" style="margin-top: 12px">
-            <n-descriptions-item label="显示名称">{{ p.name }}</n-descriptions-item>
-            <n-descriptions-item label="授权端点">{{ p.auth_url }}</n-descriptions-item>
-            <n-descriptions-item label="令牌端点">{{ p.apipoint }}</n-descriptions-item>
-            <n-descriptions-item label="回调地址">{{ p.redirect_uri }}</n-descriptions-item>
-            <n-descriptions-item label="登录后跳转">{{ p.frontend || '/' }}</n-descriptions-item>
-            <n-descriptions-item label="权限覆写">{{ p.perm === 0 ? '0(已禁用)' : (p.perm ?? '不覆写(继承用户权限)') }}</n-descriptions-item>
-          </n-descriptions>
-        </n-card>
-      </div>
-    </n-spin>
+const providers = ref<OidcProviderAdmin[]>([])
+const loading = ref(true)
 
-    <!-- 新增/编辑对话框 -->
-    <n-modal
-        v-model:show="showDialog"
-        :title="isEdit ? '编辑 OIDC 提供商' : '添加 OIDC 提供商'"
-        preset="card"
-        style="width: 560px"
-        :mask-closable="false"
-    >
-      <n-form ref="formRef" :model="formData" :rules="rules" label-placement="top">
+const showFormDialog = ref(false)
+const showDeleteConfirm = ref(false)
+const editingProvider = ref<Partial<OidcProviderAdmin> | null>(null)
+const isCreate = ref(false)
+const deletingProvider = ref<OidcProviderAdmin | null>(null)
 
-        <!-- ★ OIDC 自动发现 ★ -->
-        <n-form-item label="Issuer URL（自动发现，可选）">
-          <n-input-group>
-            <n-input
-                v-model:value="issuerUrl"
-                placeholder="e.g. https://accounts.google.com 或 http://localhost:8000"
-                style="flex: 1"
-            />
-            <n-button type="info" :loading="discovering" @click="handleDiscover">
-              自动发现
-            </n-button>
-          </n-input-group>
-        </n-form-item>
+onMounted(fetchProviders)
 
-        <n-form-item label="Client ID" path="id">
-          <n-input
-              v-model:value="formData.id"
-              placeholder="e.g. bee7bafb37755081f807"
-              :disabled="isEdit"
-          />
-        </n-form-item>
-        <n-form-item label="显示名称" path="name">
-          <n-input v-model:value="formData.name" placeholder="e.g. Casdoor" />
-        </n-form-item>
-        <n-form-item label="Client Secret" path="secret">
-          <n-input
-              v-model:value="formData.secret"
-              type="password"
-              show-password-on="click"
-              placeholder="客户端密钥"
-          />
-        </n-form-item>
-        <n-form-item label="授权端点 (auth_url)" path="auth_url">
-          <n-input v-model:value="formData.auth_url" placeholder="http://localhost:8000/login/oauth/authorize" />
-        </n-form-item>
-        <n-form-item label="令牌端点 (apipoint)" path="apipoint">
-          <n-input v-model:value="formData.apipoint" placeholder="http://localhost:8000/api/login/oauth/access_token" />
-        </n-form-item>
-        <n-form-item label="回调地址 (redirect_uri)" path="redirect_uri">
-          <n-input v-model:value="formData.redirect_uri" placeholder="http://localhost:8080/api/auth/callback" />
-        </n-form-item>
-        <n-form-item label="登录后前端跳转地址" path="frontend">
-          <n-input v-model:value="formData.frontend" placeholder="/ (默认跳转首页)" />
-        </n-form-item>
-        <n-form-item label="权限覆写(可选)" path="perm">
-          <n-input-number
-              v-model:value="formData.perm"
-              :min="0"
-              placeholder="留空则继承用户权限,0 = 禁用此提供商"
-              clearable
-              style="width: 100%"
-          />
-        </n-form-item>
-      </n-form>
-      <template #footer>
-        <n-space justify="end">
-          <n-button @click="showDialog = false">取消</n-button>
-          <n-button type="primary" :loading="submitting" @click="handleSubmit">确认</n-button>
-        </n-space>
-      </template>
-    </n-modal>
-  </div>
-</template>
-
-<script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import {
-  NButton, NCard, NModal, NForm, NFormItem, NInput, NInputNumber,
-  NInputGroup, NSpace, NSpin, NEmpty, NDescriptions, NDescriptionsItem,
-  useMessage, useDialog
-} from 'naive-ui'
-import {
-  getOidcAdminList,
-  createOidcProvider,
-  editOidcProvider,
-  deleteOidcProvider,
-  discoverOidc
-} from '@/api/server'
-
-const router = useRouter()
-const message = useMessage()
-const dialog = useDialog()
-
-const providers = ref([])
-const loading = ref(false)
-const showDialog = ref(false)
-const isEdit = ref(false)
-const submitting = ref(false)
-const formRef = ref(null)
-
-// ★ 自动发现相关状态 ★
-const issuerUrl = ref('')
-const discovering = ref(false)
-
-const formData = reactive({
-  id: '',
-  name: '',
-  secret: '',
-  auth_url: '',
-  apipoint: '',
-  redirect_uri: '',
-  frontend: '',
-  perm: null
-})
-
-const rules = {
-  id: [{ required: true, message: '必填', trigger: 'blur' }],
-  name: [{ required: true, message: '必填', trigger: 'blur' }],
-  secret: [{ required: true, message: '必填', trigger: 'blur' }],
-  auth_url: [{ required: true, message: '必填', trigger: 'blur' }],
-  apipoint: [{ required: true, message: '必填', trigger: 'blur' }],
-  redirect_uri: [{ required: true, message: '必填', trigger: 'blur' }]
-}
-
-const fetchProviders = async () => {
-  loading.value = true
+async function fetchProviders() {
   try {
-    providers.value = await getOidcAdminList()
-  } catch (e) {
-    message.error('加载失败: ' + (e.response?.data || e.message))
+    loading.value = true
+    providers.value = await api.oidc.adminList()
+  } catch (e: any) {
+    toast.error(e.response?.data || '获取 OIDC 列表失败')
   } finally {
     loading.value = false
   }
 }
 
-onMounted(fetchProviders)
-
-const resetForm = () => {
-  Object.assign(formData, {
-    id: '', name: '', secret: '', auth_url: '', apipoint: '',
-    redirect_uri: '', frontend: '', perm: null
-  })
-  issuerUrl.value = ''
+function openCreate() {
+  isCreate.value = true
+  editingProvider.value = null
+  showFormDialog.value = true
 }
 
-const openCreateDialog = () => {
-  isEdit.value = false
-  resetForm()
-  showDialog.value = true
+function openEdit(p: OidcProviderAdmin) {
+  isCreate.value = false
+  editingProvider.value = { ...p }
+  showFormDialog.value = true
 }
 
-const openEditDialog = (p) => {
-  isEdit.value = true
-  Object.assign(formData, {
-    id: p.id,
-    name: p.name,
-    secret: p.secret || '',
-    auth_url: p.auth_url,
-    apipoint: p.apipoint,
-    redirect_uri: p.redirect_uri,
-    frontend: p.frontend || '',
-    perm: p.perm ?? null
-  })
-  issuerUrl.value = ''
-  showDialog.value = true
-}
-
-// ★ OIDC 自动发现处理函数 ★
-const handleDiscover = async () => {
-  if (!issuerUrl.value) {
-    message.warning('请先输入 Issuer URL')
-    return
-  }
-  discovering.value = true
+async function handleSubmit(data: Partial<OidcProviderAdmin>) {
   try {
-    const config = await discoverOidc(issuerUrl.value)
-
-    if (config.authorization_endpoint) {
-      formData.auth_url = config.authorization_endpoint
+    if (isCreate.value) {
+      await api.oidc.create(data)
+      toast.success('OIDC 已创建')
+    } else {
+      await api.oidc.edit(data as any)
+      toast.success('OIDC 已更新')
     }
-    if (config.token_endpoint) {
-      formData.apipoint = config.token_endpoint
-    }
-    if (!formData.name && config.issuer) {
-      try {
-        formData.name = new URL(config.issuer).hostname
-      } catch { /* ignore */ }
-    }
-
-    message.success('已自动填充授权端点和令牌端点')
-  } catch (e) {
-    message.error('自动发现失败: ' + e.message)
-  } finally {
-    discovering.value = false
+    showFormDialog.value = false
+    fetchProviders()
+  } catch (e: any) {
+    toast.error(e.response?.data || '保存失败')
   }
 }
 
-const handleSubmit = () => {
-  formRef.value?.validate(async (errors) => {
-    if (errors) return
-    submitting.value = true
-    try {
-      const payload = { ...formData }
-      if (isEdit.value) {
-        await editOidcProvider(payload)
-        message.success('更新成功')
-      } else {
-        await createOidcProvider(payload)
-        message.success('添加成功')
-      }
-      showDialog.value = false
-      await fetchProviders()
-    } catch (e) {
-      message.error('操作失败: ' + (e.response?.data || e.message))
-    } finally {
-      submitting.value = false
-    }
-  })
+function openDelete(p: OidcProviderAdmin) {
+  deletingProvider.value = p
+  showDeleteConfirm.value = true
 }
 
-const handleDelete = (p) => {
-  dialog.warning({
-    title: '确认删除',
-    content: `确定要删除 "${p.name}" 吗?`,
-    positiveText: '确认',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      try {
-        await deleteOidcProvider(p.id)
-        message.success('删除成功')
-        await fetchProviders()
-      } catch (e) {
-        message.error('删除失败: ' + (e.response?.data || e.message))
-      }
-    }
-  })
+async function confirmDelete() {
+  if (!deletingProvider.value) return
+  try {
+    await api.oidc.delete(deletingProvider.value.id)
+    toast.success('OIDC 已删除')
+    showDeleteConfirm.value = false
+    fetchProviders()
+  } catch (e: any) {
+    toast.error(e.response?.data || '删除失败')
+  }
 }
 </script>
 
-<style scoped>
-.oidc-admin-container {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 24px;
-}
-.header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-.header h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-  flex: 1;
-}
-.provider-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.provider-card {
-  border-radius: 8px;
-}
-.provider-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-.provider-name {
-  font-size: 16px;
-  font-weight: 600;
-}
-.provider-id {
-  font-size: 13px;
-  color: #888;
-  margin-top: 2px;
-}
-</style>
+<template>
+  <div class="space-y-6">
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-bold">OIDC 配置</h1>
+      <div class="flex gap-2">
+        <button @click="fetchProviders" class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent transition-colors">
+          <RefreshCw class="h-4 w-4" />
+          刷新
+        </button>
+        <button @click="openCreate" class="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+          <Plus class="h-4 w-4" />
+          新建
+        </button>
+      </div>
+    </div>
+
+    <div v-if="loading" class="flex items-center justify-center py-20">
+      <div class="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
+    </div>
+
+    <div v-else-if="providers.length === 0" class="text-center py-20 text-muted-foreground">
+      <Key class="h-12 w-12 mx-auto mb-4 opacity-50" />
+      <p>暂无 OIDC 配置</p>
+    </div>
+
+    <div v-else class="rounded-md border">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b bg-muted/50">
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">ID</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">名称</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">权限</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Auth URL</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="p in providers" :key="p.id" class="border-b last:border-0">
+            <td class="px-4 py-3 text-xs font-mono text-muted-foreground">{{ p.id }}</td>
+            <td class="px-4 py-3 text-sm font-medium">{{ p.name }}</td>
+            <td class="px-4 py-3 text-sm">{{ p.perm ?? '默认' }}</td>
+            <td class="px-4 py-3 text-xs text-muted-foreground truncate max-w-[200px]">{{ p.auth_url }}</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center justify-end gap-1">
+                <button @click="openEdit(p)" class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-accent">
+                  <Edit class="h-3 w-3" />
+                  编辑
+                </button>
+                <button @click="openDelete(p)" class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10">
+                  <Trash2 class="h-3 w-3" />
+                  删除
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Form dialog -->
+    <div v-if="showFormDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showFormDialog = false">
+      <div class="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <h2 class="text-lg font-semibold mb-4">{{ isCreate ? '新建 OIDC' : '编辑 OIDC' }}</h2>
+        <OidcForm :initial="editingProvider" @submit="handleSubmit" />
+        <div class="flex justify-start mt-4">
+          <button @click="showFormDialog = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete confirm -->
+    <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showDeleteConfirm = false">
+      <div class="w-full max-w-sm rounded-lg border bg-card p-6 shadow-lg mx-4">
+        <h2 class="text-lg font-semibold mb-2">确认删除</h2>
+        <p class="text-sm text-muted-foreground mb-4">确定要删除 OIDC "{{ deletingProvider?.name }}" 吗？</p>
+        <div class="flex justify-end gap-2">
+          <button @click="showDeleteConfirm = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
+          <button @click="confirmDelete" class="inline-flex items-center justify-center rounded-md bg-destructive px-4 py-2 text-sm text-destructive-foreground hover:bg-destructive/90">删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

@@ -14,6 +14,8 @@ admin_router.post("/user/edit", async(req, res) => {
         {
             return res.status(404).send("User not found");
         }
+        await rd.del(await rd.sMembers("user:"+req.body.id));
+        await rd.del("user:"+req.body.id);
         res.send("Success.");
     }
     catch(err)
@@ -33,23 +35,21 @@ admin_router.get("/user/list", async(req, res) => {
         res.status(500).send(err.message);
     }
 });
-admin_router.post("/user/ban", async(req, res) => {
+admin_router.post("/user/delete", async(req, res) => {
     if(req.sessionPerm < 3) return res.status(403).send("Permission denied");
     try
     {
-        if(!req.body.id || req.body.banned === undefined)
+        if(!req.body.id)
         {
             return res.status(400).send('Missing required fields');
         }
-        const result=await db.query("UPDATE users SET banned=$1 WHERE id=$2;",[req.body.banned,req.body.id]);
+        const result=await db.query("DELETE FROM users WHERE id=$1;",[req.body.id]);
         if(result.rowCount<=0)
         {
             return res.status(404).send("User not found");
         }
-        if(req.body.banned)
-        {
-            await db.query("DELETE FROM session WHERE userid=$1;",[req.body.id]);
-        }
+        await rd.del(await rd.sMembers("user:"+req.body.id));
+        await rd.del("user:"+req.body.id);
         res.send("Success.");
     }
     catch(err)
@@ -211,12 +211,14 @@ admin_router.post("/request/approve", async(req, res) => {
             await db.query(
                 "UPDATE server_requests SET status='approved', updated_at=now() WHERE id=$1;", [id]
             );
-            await rd.del("server");
             return res.send("Success");
         }
     } catch(err) {
         console.log(err);
         res.status(500).send(err.message);
+    }
+    finally {
+        await rd.del("server");
     }
 });
 

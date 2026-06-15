@@ -1,256 +1,198 @@
-<template>
-  <div class="request-admin-container">
-    <div class="header">
-      <n-button quaternary @click="router.push('/')">← 返回列表</n-button>
-      <h1>申请管理</h1>
-    </div>
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { api, type ServerRequest } from '@/api'
+import { toast } from 'vue-sonner'
+import RequestStatusBadge from '@/components/RequestStatusBadge.vue'
+import ReqTypeBadge from '@/components/ReqTypeBadge.vue'
+import RequestServerName from '@/components/RequestServerName.vue'
+import { Check, X, Eye, RefreshCw } from 'lucide-vue-next'
 
-    <n-spin :show="loading">
-      <n-empty v-if="!loading && requests.length === 0" description="暂无待审核申请" style="padding: 60px 0" />
-      <div v-else class="request-cards">
-        <n-card
-          v-for="req in requests"
-          :key="req.id"
-          class="request-card"
-          :title="reqTypeLabel[req.req_type] || req.req_type"
-        >
-          <template #header-extra>
-            <n-tag type="info">审核中</n-tag>
-          </template>
-
-          <n-descriptions :column="2" label-placement="left" size="small">
-            <n-descriptions-item label="申请人">{{ req.username || req.userid }}</n-descriptions-item>
-            <n-descriptions-item label="申请时间">{{ new Date(req.created_at).toLocaleString() }}</n-descriptions-item>
-            <n-descriptions-item label="目标服务器" v-if="req.target_uuid">
-              <span style="font-family: monospace; font-size: 12px">{{ req.target_uuid }}</span>
-            </n-descriptions-item>
-            <n-descriptions-item label="服务器名称">{{ req.data?.name }}</n-descriptions-item>
-            <n-descriptions-item label="类型">{{ req.data?.type }}</n-descriptions-item>
-            <n-descriptions-item label="版本">{{ req.data?.version }}</n-descriptions-item>
-            <n-descriptions-item label="链接">{{ req.data?.link }}</n-descriptions-item>
-            <n-descriptions-item label="IP">{{ req.data?.IP || '—' }}</n-descriptions-item>
-          </n-descriptions>
-
-          <n-collapse style="margin-top: 12px">
-            <n-collapse-item title="查看描述 / 图标" name="detail">
-              <div><b>描述：</b>{{ req.data?.description }}</div>
-              <div><b>图标URL：</b>{{ req.data?.icon }}</div>
-            </n-collapse-item>
-          </n-collapse>
-
-          <template #action>
-            <n-space>
-              <n-button size="small" @click="openEditModal(req)">编辑</n-button>
-              <n-button size="small" type="success" @click="handleApprove(req)">通过</n-button>
-              <n-button size="small" type="error" @click="openRejectModal(req)">拒绝</n-button>
-            </n-space>
-          </template>
-        </n-card>
-      </div>
-    </n-spin>
-
-    <!-- Edit Modal -->
-    <n-modal v-model:show="showEditModal" preset="card" title="编辑申请数据" style="max-width: 600px">
-      <n-form v-if="editingReq" ref="editFormRef" :model="editFormData" label-placement="top">
-        <n-form-item label="服务器名称" path="name">
-          <n-input v-model:value="editFormData.name" />
-        </n-form-item>
-        <n-form-item label="类型" path="type">
-          <n-input v-model:value="editFormData.type" />
-        </n-form-item>
-        <n-form-item label="版本" path="version">
-          <n-input v-model:value="editFormData.version" />
-        </n-form-item>
-        <n-form-item label="图标URL" path="icon">
-          <n-input v-model:value="editFormData.icon" />
-        </n-form-item>
-        <n-form-item label="链接" path="link">
-          <n-input v-model:value="editFormData.link" />
-        </n-form-item>
-        <n-form-item label="IP（可选）" path="IP">
-          <n-input v-model:value="editFormData.IP" />
-        </n-form-item>
-        <n-form-item label="描述" path="description">
-          <n-input v-model:value="editFormData.description" type="textarea" :rows="3" />
-        </n-form-item>
-      </n-form>
-      <template #footer>
-        <n-space justify="end">
-          <n-button @click="showEditModal = false">取消</n-button>
-          <n-button type="primary" :loading="editSaving" @click="handleEditSave">保存</n-button>
-        </n-space>
-      </template>
-    </n-modal>
-
-    <!-- Reject Modal -->
-    <n-modal v-model:show="showRejectModal" preset="dialog" title="拒绝申请">
-      <n-input
-        v-model:value="rejectReason"
-        type="textarea"
-        placeholder="请输入拒绝理由（可选）"
-        :rows="3"
-      />
-      <template #action>
-        <n-space>
-          <n-button @click="showRejectModal = false">取消</n-button>
-          <n-button type="error" :loading="rejectSaving" @click="handleRejectConfirm">确认拒绝</n-button>
-        </n-space>
-      </template>
-    </n-modal>
-  </div>
-</template>
-
-<script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import {
-  NButton, NSpin, NEmpty, NCard, NTag, NDescriptions, NDescriptionsItem,
-  NCollapse, NCollapseItem, NSpace, NModal, NForm, NFormItem, NInput,
-  useMessage, useDialog
-} from 'naive-ui'
-import { getAdminRequests, adminEditRequest, approveRequest, rejectRequest } from '@/api/server'
-
-const router = useRouter()
-const message = useMessage()
-const dialog = useDialog()
-
+const requests = ref<ServerRequest[]>([])
 const loading = ref(true)
-const requests = ref([])
 
-const showEditModal = ref(false)
-const editingReq = ref(null)
-const editFormRef = ref(null)
-const editSaving = ref(false)
-const editFormData = reactive({
-  name: '', type: '', version: '', icon: '', link: '', IP: '', description: ''
-})
-
-const showRejectModal = ref(false)
-const rejectingReq = ref(null)
+// Approve flow state
+const showForceDialog = ref(false)
+const forceRequestId = ref<string | null>(null)
+const showRejectDialog = ref(false)
+const rejectRequestId = ref<string | null>(null)
 const rejectReason = ref('')
-const rejectSaving = ref(false)
+// Detail dialog
+const showDetailDialog = ref(false)
+const detailRequest = ref<ServerRequest | null>(null)
 
-const reqTypeLabel = {
-  create: '新建服务器',
-  edit: '编辑服务器',
-  delete: '删除服务器'
-}
+onMounted(fetchRequests)
 
-const fetchRequests = async () => {
-  loading.value = true
+async function fetchRequests() {
   try {
-    requests.value = await getAdminRequests()
-  } catch (e) {
-    message.error('加载失败：' + (e.response?.data || e.message))
+    loading.value = true
+    requests.value = await api.adminRequests.list()
+  } catch (e: any) {
+    toast.error(e.response?.data || '获取待审核列表失败')
   } finally {
     loading.value = false
   }
 }
 
-const openEditModal = (req) => {
-  editingReq.value = req
-  Object.assign(editFormData, {
-    name: req.data?.name || '',
-    type: req.data?.type || '',
-    version: req.data?.version || '',
-    icon: req.data?.icon || '',
-    link: req.data?.link || '',
-    IP: req.data?.IP || '',
-    description: req.data?.description || ''
-  })
-  showEditModal.value = true
-}
-
-const handleEditSave = async () => {
-  editSaving.value = true
+async function handleApprove(req: ServerRequest) {
   try {
-    const data = { ...editFormData }
-    if (!data.IP) delete data.IP
-    await adminEditRequest({ id: editingReq.value.id, data })
-    message.success('已保存')
-    showEditModal.value = false
-    await fetchRequests()
-  } catch (e) {
-    message.error('保存失败：' + (e.response?.data || e.message))
-  } finally {
-    editSaving.value = false
-  }
-}
-
-const handleApprove = async (req) => {
-  try {
-    await approveRequest(req.id)
-    message.success('已通过，操作执行成功')
-    await fetchRequests()
-  } catch (e) {
-    if (e.response?.status === 409 && e.response?.data?.code === 'target_not_found') {
-      dialog.warning({
-        title: '目标服务器不存在',
-        content: '目标服务器不存在，是否将此申请改为新建服务器工单？',
-        positiveText: '改为新建',
-        negativeText: '取消',
-        onPositiveClick: async () => {
-          try {
-            await approveRequest(req.id, true)
-            message.success('已通过（新建服务器）')
-            await fetchRequests()
-          } catch (e2) {
-            message.error('操作失败：' + (e2.response?.data || e2.message))
-          }
-        }
-      })
+    await api.adminRequests.approve(req.id)
+    toast.success('已通过')
+    fetchRequests()
+  } catch (e: any) {
+    if (e.response?.status === 409) {
+      // target_not_found
+      forceRequestId.value = req.id
+      showForceDialog.value = true
     } else {
-      message.error('操作失败：' + (e.response?.data || e.message))
+      toast.error(e.response?.data || '通过失败')
     }
   }
 }
 
-const openRejectModal = (req) => {
-  rejectingReq.value = req
-  rejectReason.value = ''
-  showRejectModal.value = true
-}
-
-const handleRejectConfirm = async () => {
-  rejectSaving.value = true
+async function confirmForceCreate() {
+  if (!forceRequestId.value) return
   try {
-    await rejectRequest(rejectingReq.value.id, rejectReason.value)
-    message.success('已拒绝')
-    showRejectModal.value = false
-    await fetchRequests()
-  } catch (e) {
-    message.error('操作失败：' + (e.response?.data || e.message))
-  } finally {
-    rejectSaving.value = false
+    await api.adminRequests.approve(forceRequestId.value, true)
+    toast.success('已强制创建并通过')
+    showForceDialog.value = false
+    forceRequestId.value = null
+    fetchRequests()
+  } catch (e: any) {
+    toast.error(e.response?.data || '强制创建失败')
   }
 }
 
-onMounted(fetchRequests)
+function openReject(id: string) {
+  rejectRequestId.value = id
+  rejectReason.value = ''
+  showRejectDialog.value = true
+}
+
+async function confirmReject() {
+  if (!rejectRequestId.value) return
+  try {
+    await api.adminRequests.reject(rejectRequestId.value, rejectReason.value)
+    toast.success('已驳回')
+    showRejectDialog.value = false
+    rejectRequestId.value = null
+    fetchRequests()
+  } catch (e: any) {
+    toast.error(e.response?.data || '驳回失败')
+  }
+}
+
 </script>
 
-<style scoped>
-.request-admin-container {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 24px;
-}
-.header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-.header h1 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
-}
-.request-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.request-card {
-  width: 100%;
-}
-</style>
+<template>
+  <div class="space-y-6">
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-bold">审核申请</h1>
+      <button
+        @click="fetchRequests"
+        class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent transition-colors"
+      >
+        <RefreshCw class="h-4 w-4" />
+        刷新
+      </button>
+    </div>
+
+    <div v-if="loading" class="flex items-center justify-center py-20">
+      <div class="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
+    </div>
+
+    <div v-else-if="requests.length === 0" class="text-center py-20 text-muted-foreground">
+      <Check class="h-12 w-12 mx-auto mb-4 opacity-50" />
+      <p>暂无待审核申请</p>
+    </div>
+
+    <div v-else class="rounded-md border">
+      <table class="w-full">
+        <thead>
+          <tr class="border-b bg-muted/50">
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">服务器名</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">申请人</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">类型</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">提交时间</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="req in requests" :key="req.id" class="border-b last:border-0">
+            <td class="px-4 py-3"><RequestServerName :req="req" /></td>
+            <td class="px-4 py-3 text-sm text-muted-foreground">{{ req.username || req.userid }}</td>
+            <td class="px-4 py-3"><ReqTypeBadge :type="req.req_type" /></td>
+            <td class="px-4 py-3 text-sm text-muted-foreground">{{ new Date(req.created_at).toLocaleDateString('zh-CN') }}</td>
+            <td class="px-4 py-3">
+              <div class="flex items-center justify-end gap-1">
+                <button
+                  @click="detailRequest = req; showDetailDialog = true"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-accent"
+                >
+                  <Eye class="h-3 w-3" />
+                  详情
+                </button>
+                <button
+                  @click="handleApprove(req)"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-green-500 hover:bg-green-500/10"
+                >
+                  <Check class="h-3 w-3" />
+                  通过
+                </button>
+                <button
+                  @click="openReject(req.id)"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                >
+                  <X class="h-3 w-3" />
+                  驳回
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Detail dialog -->
+    <div v-if="showDetailDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showDetailDialog = false">
+      <div class="w-full max-w-md rounded-lg border bg-card p-6 shadow-lg mx-4 max-h-[80vh] overflow-y-auto">
+        <h2 class="text-lg font-semibold mb-4">申请详情</h2>
+        <div v-if="detailRequest" class="space-y-2 text-sm">
+          <div><span class="text-muted-foreground">类型:</span> {{ detailRequest.req_type }}</div>
+          <div><span class="text-muted-foreground">目标:</span> {{ detailRequest.target_uuid || '新建' }}</div>
+          <div v-for="(v, k) in detailRequest.data" :key="k" class="flex gap-2">
+            <span class="text-muted-foreground shrink-0">{{ k }}:</span>
+            <span class="break-all">{{ v }}</span>
+          </div>
+        </div>
+        <div class="flex justify-end mt-6">
+          <button @click="showDetailDialog = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Force create dialog -->
+    <div v-if="showForceDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showForceDialog = false">
+      <div class="w-full max-w-sm rounded-lg border bg-card p-6 shadow-lg mx-4">
+        <h2 class="text-lg font-semibold mb-2">目标服务器已被删除</h2>
+        <p class="text-sm text-muted-foreground mb-4">该申请指向的服务器已不存在，是否强制创建为新的服务器？</p>
+        <div class="flex justify-end gap-2">
+          <button @click="showForceDialog = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
+          <button @click="confirmForceCreate" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">强制创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reject dialog -->
+    <div v-if="showRejectDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showRejectDialog = false">
+      <div class="w-full max-w-sm rounded-lg border bg-card p-6 shadow-lg mx-4">
+        <h2 class="text-lg font-semibold mb-2">驳回申请</h2>
+        <p class="text-sm text-muted-foreground mb-3">请输入驳回理由（可选）</p>
+        <textarea v-model="rejectReason" rows="3" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm" placeholder="驳回理由..." />
+        <div class="flex justify-end gap-2 mt-4">
+          <button @click="showRejectDialog = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
+          <button @click="confirmReject" class="inline-flex items-center justify-center rounded-md bg-destructive px-4 py-2 text-sm text-destructive-foreground hover:bg-destructive/90">确认驳回</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

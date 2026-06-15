@@ -10,14 +10,10 @@
 - Express.js 5.2.1
 - Node.js (ES Modules)
 - PostgreSQL（数据库）
+- Redis
 
 ### 前端
-- Vue 3
-- Vite（构建工具）
-- Pinia（状态管理）
-- Vue Router（路由）
-- Naive UI（UI 组件库）
-- Axios（HTTP 客户端）
+???
 
 ## 项目结构
 
@@ -31,63 +27,8 @@ server-list/
 │   ├── oidc-config.js    # OIDC 配置接口
 │   └── request.js        # 用户申请 CRUD 接口
 ├── frontend/
-│   └── src/
-│       ├── api/
-│       │   └── server.js          # API 调用封装
-│       ├── stores/
-│       │   ├── serverStore.js     # 服务器数据状态
-│       │   └── authStore.js       # 认证状态（含权限）
-│       ├── router/
-│       │   └── index.js           # 路由配置
-│       ├── components/
-│       │   ├── ServerCard.vue     # 服务器卡片
-│       │   ├── ServerForm.vue     # 服务器表单
-│       │   ├── ContextMenu.vue    # 右键菜单
-│       │   └── TokenDialog.vue    # 登录对话框
-│       └── views/
-│           ├── ServerList.vue     # 服务器列表页
-│           ├── ServerEdit.vue     # 服务器编辑/新增页
-│           ├── OidcAdmin.vue      # OIDC 配置管理页
-│           ├── UserAdmin.vue      # 用户权限管理页
-│           ├── RequestList.vue    # 用户申请列表页
-│           ├── RequestForm.vue    # 申请创建/编辑页
-│           └── RequestAdmin.vue   # 申请审核页（管理员）
 └── package.json
 ```
-
-## 启动项目
-
-### 1. 准备数据库
-
-确保已安装并启动 PostgreSQL，然后创建数据库：
-
-```bash
-psql -U postgres
-CREATE DATABASE serverlist;
-```
-
-数据库表结构会在首次启动时自动创建。
-
-### 2. 启动后端
-
-```bash
-# 项目根目录
-yarn backend
-
-# 或手动指定环境变量
-DB_PASSWORD=your_password TOKEN=your_token node src/index.js
-```
-
-后端运行在 **http://localhost:8080**
-
-### 3. 启动前端（开发）
-
-```bash
-cd frontend
-yarn dev
-```
-
-前端运行在 **http://localhost:5173**
 
 ## 认证与权限
 
@@ -135,6 +76,7 @@ yarn dev
 - 编辑页可修改除 UUID 外的所有字段
 - IP 字段为可选项
 - 编辑页可一键"创建草稿"将当前数据保存为编辑申请
+- 修改两种tag:类型(type),版本(version)，服务器和申请的相关字段可以**不在**管理员设置的列表内
 
 ### 申请审核工作流
 
@@ -181,6 +123,7 @@ yarn dev
 | POST | `/api/request/submit` | 提交草稿为待审核 |
 | POST | `/api/request/cancel` | 撤回待审核申请为草稿 |
 | POST | `/api/request/delete` | 删除草稿 |
+| GET | `/api/request/getjson` | 获取服务器列表的复制版 |
 
 ### 管理接口（perm ≥ 2）
 
@@ -194,6 +137,7 @@ yarn dev
 | POST | `/api/admin/request/approve` | 审核通过（可选 `force_create` 强制新建） |
 | POST | `/api/admin/request/reject` | 拒绝申请（可附理由） |
 | POST | `/api/admin/request/submit` | 将草稿提交为待审核（绕过用户数量限制） |
+| POST | `/api/admin/tag/{tag类型}/edit` | 修改某个tag |
 
 ### 超级管理员接口（perm ≥ 3）
 
@@ -223,48 +167,6 @@ yarn dev
 
 ## Docker 部署
 
-### Docker Compose（推荐）
-
-```yaml
-version: '3.8'
-
-services:
-  postgres:
-    image: postgres:latest
-    environment:
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: serverlist
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  server-list:
-    image: ghcr.io/minejpgcraft/server-list:latest
-    ports:
-      - "8080:8080"
-    environment:
-      - TOKEN=your_admin_token
-      - DB_HOST=postgres
-      - DB_PASSWORD=password
-      - DB_NAME=serverlist
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-```
-
-```bash
-docker-compose up -d
-```
-
 ### 手动 Docker
 
 ```bash
@@ -277,7 +179,3 @@ docker run -d \
   --link postgres-db:postgres-db \
   ghcr.io/minejpgcraft/server-list:latest
 ```
-
-## 许可证
-
-MIT

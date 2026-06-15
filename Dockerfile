@@ -18,7 +18,7 @@ RUN npm install --omit=dev && \
 
 # 复制源码和构建产物
 COPY src/ ./src/
-COPY --from=frontend-builder /app/dist ./dist
+COPY --from=frontend-builder /app/frontend/dist ./dist
 
 # 创建数据目录并设置权限
 RUN mkdir -p /app/data && chown -R node:node /app

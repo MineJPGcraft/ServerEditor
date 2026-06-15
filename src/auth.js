@@ -1,6 +1,7 @@
 import express from "express";
 import axios from "axios";
-import {db} from "./db.js"
+import {db, rd} from "./db.js"
+import * as crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 export const authRouter = express.Router();
 authRouter.get("/callback", async (req, res) => {
@@ -43,22 +44,28 @@ authRouter.get("/callback", async (req, res) => {
                 (id,name,perm)
                 VALUES ($1,$2,$3);`,[json_info.sub,json_info.name||json_info.sub,1]);
         }
-        else if(user_info[0].banned)
-        {
-            // 封禁用户仍允许登录，但 perm=0
-            const session_id=(await client.query(`INSERT INTO session
-                (userid,perm)
-                VALUES ($1,$2)
-                RETURNING *;`,[json_info.sub,0])).rows;
-            res.cookie('session_id',session_id[0].uuid,{httpOnly:true});
-            client.query("COMMIT;");
-            return res.redirect(oidc_client[0].frontend||'/');
-        }
-        const session_id=(await client.query(`INSERT INTO session
-                (userid,perm)
-                VALUES ($1,$2)
-                RETURNING *;`,[json_info.sub,Math.max(oidc_client[0].perm||1,user_info[0]?.perm||1)])).rows;
-        res.cookie('session_id',session_id[0].uuid,{httpOnly:true});
+        // else if(user_info[0].banned)
+        // {
+        //     // 封禁用户仍允许登录，但 perm=0
+        //     const session_id=(await client.query(`INSERT INTO session
+        //         (userid,perm)
+        //         VALUES ($1,$2)
+        //         RETURNING *;`,[json_info.sub,0])).rows;
+        //     res.cookie('session_id',session_id[0].uuid,{httpOnly:true});
+        //     client.query("COMMIT;");
+        //     return res.redirect(oidc_client[0].frontend||'/');
+        // }
+        // const session_id=(await client.query(`INSERT INTO session
+        //         (userid,perm)
+        //         VALUES ($1,$2)
+        //         RETURNING *;`,[json_info.sub,Math.max(oidc_client[0].perm||1,user_info[0]?.perm||1)])).rows;
+        // res.cookie('session_id',session_id[0].uuid,{httpOnly:true});
+        let session_id=crypto.randomUUID();
+        await rd.hSet("session:"+session_id,{userid:json_info.sub,perm:Math.max(oidc_client[0].perm||1,user_info[0]?.perm||1)});
+        await rd.expire("session:"+session_id,86400);
+        await rd.sAdd("user:"+json_info.sub,"session:"+session_id);
+        await rd.expire("user:"+json_info.sub,86400);
+        res.cookie('session_id',session_id,{httpOnly:true});
         client.query("COMMIT;");
         return res.redirect(oidc_client[0].frontend||'/');
     }
@@ -76,7 +83,9 @@ authRouter.get("/callback", async (req, res) => {
 authRouter.post("/logout", async (req, res) => {
     try
     {
-        await db.query(`DELETE FROM session WHERE uuid=$1;`,[req.cookies.session_id]);
+        // await db.query(`DELETE FROM session WHERE uuid=$1;`,[req.cookies.session_id]);
+        await rd.del("session:"+req.cookies.session_id);
+        await rd.sRem("user:"+req.sessionUserId,req.cookies.session_id);
         res.clearCookie('session_id');
         res.send("Success");
     }
@@ -108,11 +117,12 @@ authRouter.post("/token", async (req, res) => {
                 (id,name,perm)
                 VALUES ($1,$2,$3);`,["token","token",3]);
         }
-        const session_id=(await db.query(`INSERT INTO session
-                (userid,perm)
-                VALUES ($1,$2)
-                RETURNING *;`,["token",3])).rows;
-        res.cookie('session_id',session_id[0].uuid,{httpOnly:true});
+        let session_id=crypto.randomUUID();
+        await rd.hSet("session:"+session_id,{user_id:"token",perm:3});
+        await rd.expire("session:"+session_id,86400);
+        await rd.sAdd("user:token","session:"+session_id);
+        await rd.expire("user:token",86400);
+        res.cookie('session_id',session_id,{httpOnly:true});
         return res.send("Success");
     }
     catch(err)
@@ -132,14 +142,14 @@ export function checkSession(level)
             {
                 return res.status(403).send("Not authorized");
             }
-            const session_info=(await db.query(`SELECT * FROM session WHERE uuid=$1`,[session])).rows;
-            if(session_info.length<=0)
+            const session_info=await rd.hGetAll("session:"+session);
+            if(session_info==={})
             {
                 return res.status(403).send("Not authorized");
             }
-            req.sessionPerm=session_info[0].perm;
-            req.sessionUserId=session_info[0].userid;
-            if(!level || session_info[0].perm>=level)
+            req.sessionPerm=session_info.perm;
+            req.sessionUserId=session_info.userid;
+            if(!level || session_info.perm>=level)
             {
                 next();
             }

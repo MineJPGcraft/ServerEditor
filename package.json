@@ -16,7 +16,7 @@
   },
   "scripts": {
     "backend": "node src/index.js",
-    "build": "cd frontend&&yarn build",
-    "frontend": "cd frontend&&yarn run dev"
+    "build": "cd frontend && npm run build",
+    "frontend": "cd frontend && npm run dev"
   }
 }

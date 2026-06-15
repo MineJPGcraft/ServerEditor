@@ -1,445 +1,213 @@
-<template>
-  <div class="server-list-container">
-    <div class="header">
-      <h1>服务器列表</h1>
-      <div class="header-actions">
-        <n-button
-          v-if="setupMode"
-          type="warning"
-          @click="router.push('/setup')"
-        >
-          系统初始化
-        </n-button>
-        <n-button
-          v-if="authStore.isAuthenticated"
-          quaternary
-          @click="handleLogout"
-        >
-          退出登录
-        </n-button>
-        <n-button
-          v-else
-          quaternary
-          @click="showTokenDialog = true"
-        >
-          登录
-        </n-button>
-        <n-button
-          v-if="authStore.isAdmin"
-          quaternary
-          @click="router.push('/admin/requests')"
-        >
-          申请管理
-        </n-button>
-        <n-button
-          v-if="authStore.isActive"
-          quaternary
-          @click="router.push('/requests')"
-        >
-          我的申请
-        </n-button>
-        <n-button
-          v-if="authStore.isSuperAdmin"
-          quaternary
-          @click="router.push('/users')"
-        >
-          用户管理
-        </n-button>
-        <n-button
-          v-if="authStore.isSuperAdmin"
-          quaternary
-          @click="router.push('/oidc')"
-        >
-          OIDC 管理
-        </n-button>
-        <n-button v-if="authStore.isAdmin" type="primary" @click="handleAdd">
-          添加服务器
-        </n-button>
-      </div>
-    </div>
-
-    <!-- 搜索和分页设置 -->
-    <div class="toolbar">
-      <n-input
-        v-model:value="searchQuery"
-        placeholder="按名称搜索服务器..."
-        clearable
-        class="search-input"
-      >
-        <template #prefix>
-          <n-icon>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5A6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5S14 7.01 14 9.5S11.99 14 9.5 14z"/>
-            </svg>
-          </n-icon>
-        </template>
-      </n-input>
-      <div class="page-size-selector">
-        <span class="page-size-label">每页显示：</span>
-        <n-select
-          v-model:value="pageSize"
-          :options="pageSizeOptions"
-          size="small"
-          style="width: 100px"
-        />
-      </div>
-    </div>
-
-    <n-spin :show="serverStore.loading">
-      <div v-if="paginatedServers.length > 0" class="server-grid">
-        <ServerCard
-          v-for="server in paginatedServers"
-          :key="server.uuid"
-          :server="server"
-          @contextmenu="handleContextMenu"
-        />
-      </div>
-      <n-empty
-        v-else
-        :description="searchQuery ? '未找到匹配的服务器' : '暂无服务器'"
-        class="empty-state"
-      />
-
-      <!-- 分页 -->
-      <div v-if="filteredServers.length > 0" class="pagination-container">
-        <n-pagination
-          v-model:page="currentPage"
-          :item-count="filteredServers.length"
-          :page-size="pageSize"
-          show-size-picker
-          :page-sizes="[6, 12, 24, 48]"
-          @update:page-size="handlePageSizeChange"
-        >
-          <template #prefix="{ itemCount }">
-            共 {{ itemCount }} 个服务器
-          </template>
-        </n-pagination>
-      </div>
-    </n-spin>
-
-    <ContextMenu
-      :visible="contextMenu.visible.value"
-      :x="contextMenu.x.value"
-      :y="contextMenu.y.value"
-      :show-request-edit="authStore.isActive && !authStore.isAdmin"
-      @delete="handleDelete"
-      @request-edit="handleRequestEdit"
-    />
-
-    <TokenDialog
-      v-model:show="showTokenDialog"
-      @submit="handleTokenSubmit"
-      @cancel="handleTokenCancel"
-    />
-  </div>
-</template>
-
-<script setup>
-import { onMounted, ref, computed, watch } from 'vue'
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NSpin, NEmpty, NInput, NSelect, NPagination, NIcon, useMessage, useDialog } from 'naive-ui'
-import { useServerStore } from '@/stores/serverStore'
-import { useAuthStore } from '@/stores/authStore'
-import { useContextMenu } from '@/composables/useContextMenu'
+import { useServers } from '@/composables/useServers'
+import { useAuth } from '@/composables/useAuth'
+import { api, type Server } from '@/api'
 import ServerCard from '@/components/ServerCard.vue'
-import ContextMenu from '@/components/ContextMenu.vue'
-import TokenDialog from '@/components/TokenDialog.vue'
-import { getSetupStatus, createRequest, submitRequest } from '@/api/server'
+import Combobox from '@/components/Combobox.vue'
+import { toast } from 'vue-sonner'
+import { Search, RefreshCw } from 'lucide-vue-next'
 
+const { servers, types, versions, loading, fetchServers } = useServers()
+const { isAdmin, isLoggedIn } = useAuth()
 const router = useRouter()
-const message = useMessage()
-const dialog = useDialog()
-const serverStore = useServerStore()
-const authStore = useAuthStore()
-const contextMenu = useContextMenu()
 
-const showTokenDialog = ref(false)
-let pendingAction = null
-const setupMode = ref(false)
+const searchName = ref('')
+const filterType = ref('')
+const filterVersion = ref('')
 
-// 搜索和分页状态
-const searchQuery = ref('')
-const currentPage = ref(1)
-const pageSize = ref(parseInt(localStorage.getItem('serverListPageSize')) || 12)
+// 普通用户：对卡片发起修改申请
+function requestEdit(server: Server) {
+  router.push({ path: '/requests/new', query: { target: server.uuid, mode: 'edit' } })
+}
 
-const pageSizeOptions = [
-  { label: '6', value: 6 },
-  { label: '12', value: 12 },
-  { label: '24', value: 24 },
-  { label: '48', value: 48 }
-]
+// 发起删除申请
+function requestDelete(server: Server) {
+  router.push({ path: '/requests/new', query: { target: server.uuid, mode: 'delete' } })
+}
 
-// 过滤后的服务器列表
 const filteredServers = computed(() => {
-  if (!searchQuery.value) {
-    return serverStore.servers
-  }
-
-  const query = searchQuery.value.toLowerCase().trim()
-  return serverStore.servers.filter(server =>
-    server.name.toLowerCase().includes(query)
-  )
-})
-
-// 总页数
-const totalPages = computed(() => {
-  return Math.ceil(filteredServers.value.length / pageSize.value)
-})
-
-// 当前页的服务器列表
-const paginatedServers = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return filteredServers.value.slice(start, end)
-})
-
-// 监听搜索变化，重置到第一页
-watch(searchQuery, () => {
-  currentPage.value = 1
-})
-
-// 监听过滤结果变化，如果当前页超出范围则重置
-watch(filteredServers, () => {
-  if (currentPage.value > totalPages.value && totalPages.value > 0) {
-    currentPage.value = totalPages.value
-  }
-})
-
-// 监听分页大小变化，保存到 localStorage
-watch(pageSize, (newSize) => {
-  localStorage.setItem('serverListPageSize', newSize.toString())
-  // 重新计算当前页，避免超出范围
-  if (currentPage.value > totalPages.value && totalPages.value > 0) {
-    currentPage.value = totalPages.value
-  }
-})
-
-const handlePageSizeChange = (newSize) => {
-  pageSize.value = newSize
-}
-
-onMounted(async () => {
-  await authStore.checkAuth()
-  // 静默检测是否需要初始化，不影响正常加载
-  getSetupStatus().then(() => { setupMode.value = true }).catch(() => {})
-  try {
-    await serverStore.fetchServers()
-  } catch (error) {
-    message.error('加载服务器列表失败：' + error.message)
-  }
-})
-
-const requireAuth = (action) => {
-  if (!authStore.isAuthenticated) {
-    pendingAction = action
-    showTokenDialog.value = true
-    return false
-  }
-  if (!authStore.isActive) {
-    message.error('账号已被封禁，无法执行操作')
-    return false
-  }
-  return true
-}
-
-const handleTokenSubmit = async (token) => {
-  try {
-    await authStore.loginWithToken(token)
-    message.success('验证成功')
-    showTokenDialog.value = false
-    if (pendingAction) {
-      pendingAction()
-      pendingAction = null
-    }
-  } catch (e) {
-    const msg = e.response?.data
-    if (msg === 'Token disabled') {
-      message.error('Token 登录未启用')
-    } else {
-      message.error('Token 无效')
-    }
-  }
-}
-
-const handleTokenCancel = () => {
-  pendingAction = null
-  showTokenDialog.value = false
-}
-
-const handleLogout = () => {
-  dialog.warning({
-    title: '确认退出',
-    content: '确定要退出登录吗？',
-    positiveText: '确认',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      await authStore.logout()
-      message.success('已退出登录')
-    }
+  return servers.value.filter(s => {
+    if (searchName.value && !s.name.toLowerCase().includes(searchName.value.toLowerCase())) return false
+    if (filterType.value && s.type !== filterType.value) return false
+    if (filterVersion.value && s.version !== filterVersion.value) return false
+    return true
   })
+})
+
+// Edit/Delete dialog
+const showEditDialog = ref(false)
+const showDeleteConfirm = ref(false)
+const editingServer = ref<Server | null>(null)
+const editForm = ref({ name: '', type: '', version: '', icon: '', description: '', link: '', IP: '' })
+
+function openEdit(server: Server) {
+  editingServer.value = server
+  editForm.value = {
+    name: server.name,
+    type: server.type,
+    version: server.version,
+    icon: server.icon,
+    description: server.description,
+    link: server.link,
+    IP: server.IP || '',
+  }
+  showEditDialog.value = true
 }
 
-const handleAdd = () => {
-  if (requireAuth(() => handleAdd())) {
-    if (authStore.isAdmin) {
-      router.push('/create')
-    } else {
-      router.push('/requests/new')
-    }
+async function saveEdit() {
+  if (!editingServer.value) return
+  try {
+    await api.servers.edit({ ...editForm.value, uuid: editingServer.value.uuid, IP: editForm.value.IP || null })
+    toast.success('服务器已更新')
+    showEditDialog.value = false
+    fetchServers()
+  } catch (e: any) {
+    toast.error(e.response?.data || '更新失败')
   }
 }
 
-const handleContextMenu = (event, server) => {
-  contextMenu.show(event, server)
+function openDelete(server: Server) {
+  editingServer.value = server
+  showDeleteConfirm.value = true
 }
 
-const handleRequestEdit = () => {
-  const server = contextMenu.targetData.value
-  if (!server) return
-  contextMenu.hide()
-  router.push(`/requests/new?type=edit&uuid=${server.uuid}`)
-}
-
-const handleDelete = () => {
-  const server = contextMenu.targetData.value
-  if (!server) return
-
-  // 立即隐藏右键菜单
-  contextMenu.hide()
-
-  // 检查身份验证
-  if (!requireAuth(() => {
-    // 验证成功后重新触发删除
-    handleDeleteConfirm(server)
-  })) {
-    return
+async function confirmDelete() {
+  if (!editingServer.value) return
+  try {
+    await api.servers.delete(editingServer.value.uuid)
+    toast.success('服务器已删除')
+    showDeleteConfirm.value = false
+    fetchServers()
+  } catch (e: any) {
+    toast.error(e.response?.data || '删除失败')
   }
-
-  // 直接弹出确认对话框
-  handleDeleteConfirm(server)
 }
 
-const handleDeleteConfirm = (server) => {
-  dialog.warning({
-    title: '确认删除',
-    content: `确定要删除服务器 "${server.name}" 吗？`,
-    positiveText: '确认',
-    negativeText: '取消',
-    onPositiveClick: async () => {
-      try {
-        await serverStore.deleteServer(server.uuid)
-        message.success('删除成功')
-      } catch (error) {
-        if (error.response?.status === 403) {
-          if (error.response.data === 'Permission denied') {
-            message.error('权限不足')
-          } else {
-            authStore.isAuthenticated = false
-            authStore.perm = 0
-            message.error('登录已失效，请重新登录')
-          }
-        } else {
-          message.error('删除失败：' + (error.response?.data || error.message))
-        }
-      }
-    }
-  })
-}
+onMounted(() => {
+  fetchServers()
+})
 </script>
 
-<style scoped>
-.server-list-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 24px;
-}
+<template>
+  <div class="space-y-6">
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-bold">服务器列表</h1>
+      <button
+        @click="fetchServers"
+        class="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent transition-colors"
+      >
+        <RefreshCw class="h-4 w-4" />
+        刷新
+      </button>
+    </div>
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-3">
+      <div class="relative flex-1 min-w-[200px]">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          v-model="searchName"
+          placeholder="搜索服务器名称..."
+          class="flex h-9 w-full rounded-md border bg-transparent pl-9 pr-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+      </div>
+      <select
+        v-model="filterType"
+        class="flex h-9 w-[140px] rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <option value="">全部类型</option>
+        <option v-for="t in types" :key="t" :value="t">{{ t }}</option>
+      </select>
+      <select
+        v-model="filterVersion"
+        class="flex h-9 w-[140px] rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <option value="">全部版本</option>
+        <option v-for="v in versions" :key="v" :value="v">{{ v }}</option>
+      </select>
+    </div>
 
-.header h1 {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 600;
-  color: #333;
-}
+    <!-- Loading -->
+    <div v-if="loading" class="flex items-center justify-center py-20">
+      <div class="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
+    </div>
 
-.header-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
+    <!-- Empty -->
+    <div v-else-if="filteredServers.length === 0" class="text-center py-20 text-muted-foreground">
+      <Server class="h-12 w-12 mx-auto mb-4 opacity-50" />
+      <p>暂无服务器</p>
+    </div>
 
-.toolbar {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-}
+    <!-- Grid -->
+    <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <ServerCard
+        v-for="server in filteredServers"
+        :key="server.uuid"
+        :server="server"
+        :is-admin="isAdmin"
+        :is-logged-in="isLoggedIn"
+        @edit="openEdit"
+        @delete="openDelete"
+        @request-edit="requestEdit"
+        @request-delete="requestDelete"
+      />
+    </div>
 
-.search-input {
-  flex: 1;
-  min-width: 200px;
-  max-width: 400px;
-}
+    <!-- Edit Dialog -->
+    <div v-if="showEditDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showEditDialog = false">
+      <div class="w-full max-w-lg rounded-lg border bg-card p-6 shadow-lg mx-4">
+        <h2 class="text-lg font-semibold mb-4">编辑服务器</h2>
+        <div class="space-y-3">
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">名称</label>
+            <input v-model="editForm.name" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1.5">
+              <label class="text-sm font-medium">类型</label>
+              <Combobox v-model="editForm.type" :options="types" placeholder="选择或输入类型" />
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-sm font-medium">版本</label>
+              <Combobox v-model="editForm.version" :options="versions" placeholder="选择或输入版本" />
+            </div>
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">图标 URL</label>
+            <input v-model="editForm.icon" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">描述</label>
+            <textarea v-model="editForm.description" rows="3" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm" />
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">链接</label>
+            <input v-model="editForm.link" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">IP (可选)</label>
+            <input v-model="editForm.IP" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+          <button @click="showEditDialog = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
+          <button @click="saveEdit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">保存</button>
+        </div>
+      </div>
+    </div>
 
-.page-size-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-}
-
-.page-size-label {
-  font-size: 14px;
-  color: #666;
-}
-
-.server-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-}
-
-.empty-state {
-  padding: 60px 0;
-}
-
-.pagination-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 32px;
-  padding-top: 24px;
-  border-top: 1px solid #f0f0f0;
-}
-
-@media (max-width: 768px) {
-  .server-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-
-  .toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .search-input {
-    max-width: 100%;
-  }
-
-  .page-size-selector {
-    justify-content: space-between;
-  }
-}
-</style>
+    <!-- Delete Confirm -->
+    <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showDeleteConfirm = false">
+      <div class="w-full max-w-sm rounded-lg border bg-card p-6 shadow-lg mx-4">
+        <h2 class="text-lg font-semibold mb-2">确认删除</h2>
+        <p class="text-sm text-muted-foreground mb-4">确定要删除服务器 "{{ editingServer?.name }}" 吗？此操作不可撤销。</p>
+        <div class="flex justify-end gap-2">
+          <button @click="showDeleteConfirm = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
+          <button @click="confirmDelete" class="inline-flex items-center justify-center rounded-md bg-destructive px-4 py-2 text-sm text-destructive-foreground hover:bg-destructive/90">删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

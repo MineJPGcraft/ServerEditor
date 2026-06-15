@@ -21,11 +21,6 @@ export async function dbinit()
     link text NOT NULL,
     IP text
 );`);
-    await db.query(`CREATE TABLE IF NOT EXISTS session (
-    uuid UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
-    userid text NOT NULL,
-    perm integer NOT NULL
-);`);
     await db.query(`CREATE TABLE IF NOT EXISTS oidc (
     id text NOT NULL PRIMARY KEY,
     name text NOT NULL,
@@ -41,10 +36,8 @@ export async function dbinit()
     name text NOT NULL,
     perm integer NOT NULL DEFAULT 1,
     nowpd integer NOT NULL DEFAULT 0,
-    alpd integer NOT NULL DEFAULT 0,
-    banned boolean NOT NULL DEFAULT false
+    alpd integer NOT NULL DEFAULT 0
 );`);
-    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS banned boolean NOT NULL DEFAULT false;`);
     await db.query(`CREATE TABLE IF NOT EXISTS server_requests (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     userid text NOT NULL,
