@@ -143,7 +143,7 @@ async function confirmDelete() {
             <input v-model="form.link" required class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium">IP (可选)</label>
+            <label class="text-sm font-medium">连接地址(可选)</label>
             <input v-model="form.IP" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
           </div>
         </div>
