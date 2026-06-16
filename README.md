@@ -107,6 +107,7 @@ server-list/
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/getjson` | 获取服务器列表 |
+| GET | `/api/getjson-fork` | 获取服务器列表 |
 | GET | `/api/oidcConfig/list` | 获取 OIDC 提供商列表（仅公开字段） |
 | GET | `/api/auth/check` | 检查登录状态，返回 `{ perm }` |
 | POST | `/api/auth/token` | Token 登录 |
@@ -123,7 +124,6 @@ server-list/
 | POST | `/api/request/submit` | 提交草稿为待审核 |
 | POST | `/api/request/cancel` | 撤回待审核申请为草稿 |
 | POST | `/api/request/delete` | 删除草稿 |
-| GET | `/api/request/getjson` | 获取服务器列表的复制版 |
 
 ### 管理接口（perm ≥ 2）
 
@@ -179,3 +179,7 @@ docker run -d \
   --link postgres-db:postgres-db \
   ghcr.io/minejpgcraft/server-list:latest
 ```
+
+## 交互式用户配置
+
+在无任何超管用户的情况下，并且token未配置，则/setup路径开放，可进行交互配置，请注意，使用token登录一次后会留下名为token的超管用户

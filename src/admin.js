@@ -27,7 +27,7 @@ admin_router.get("/user/list", async(req, res) => {
     if(req.sessionPerm < 3) return res.status(403).send("Permission denied");
     try
     {
-        const result=await db.query("SELECT id,name,perm,banned FROM users;");
+        const result=await db.query("SELECT id,name,perm FROM users;");
         res.json(result.rows);
     }
     catch(err)
