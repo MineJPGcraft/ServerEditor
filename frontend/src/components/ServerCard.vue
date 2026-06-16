@@ -94,7 +94,7 @@ const fallbackIcon =
           v-if="server.IP"
           @click="copyIP(server.IP)"
           class="text-xs text-muted-foreground hover:text-foreground"
-          title="复制 IP"
+          title="复制 连接地址"
         >
           {{ server.IP }}
         </button>

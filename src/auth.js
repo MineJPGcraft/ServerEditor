@@ -42,7 +42,7 @@ authRouter.get("/callback", async (req, res) => {
         {
             await client.query(`INSERT INTO users
                 (id,name,perm)
-                VALUES ($1,$2,$3);`,[json_info.sub,json_info.name||json_info.sub,1]);
+                VALUES ($1,$2,$3);`,[json_info.sub,json_info.name||json_info.sub,oidc_client[0].perm||1]);
         }
         // else if(user_info[0].banned)
         // {
@@ -61,7 +61,7 @@ authRouter.get("/callback", async (req, res) => {
         //         RETURNING *;`,[json_info.sub,Math.max(oidc_client[0].perm||1,user_info[0]?.perm||1)])).rows;
         // res.cookie('session_id',session_id[0].uuid,{httpOnly:true});
         let session_id=crypto.randomUUID();
-        await rd.hSet("session:"+session_id,{userid:json_info.sub,perm:Math.max(oidc_client[0].perm||1,user_info[0]?.perm||1)});
+        await rd.hSet("session:"+session_id,{userid:json_info.sub,perm:user_info[0].perm||1});
         await rd.expire("session:"+session_id,86400);
         await rd.sAdd("user:"+json_info.sub,"session:"+session_id);
         await rd.expire("user:"+json_info.sub,864000);
