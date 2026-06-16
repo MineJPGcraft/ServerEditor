@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import axios from 'axios'
 import type { OidcProviderAdmin } from '@/api'
 import { toast } from 'vue-sonner'
@@ -7,11 +7,15 @@ import { Search, Loader2 } from 'lucide-vue-next'
 
 const props = defineProps<{
   initial: Partial<OidcProviderAdmin> | null
+  // create = 新建（secret 必填）；edit = 编辑（secret 可选，留空表示不修改）
+  mode?: 'create' | 'edit'
 }>()
 
 const emit = defineEmits<{
   submit: [data: Partial<OidcProviderAdmin>]
 }>()
+
+const isEdit = computed(() => props.mode === 'edit')
 
 const form = ref({
   id: '',
@@ -33,6 +37,8 @@ watch(
   (val) => {
     if (val) {
       form.value = { ...form.value, ...val }
+      // 编辑模式下后端 admin/list 返回的 secret 是脱敏占位（"qwq"），清空以触发"留空=不修改"语义
+      if (isEdit.value) form.value.secret = ''
     }
   },
   { immediate: true }
@@ -80,8 +86,15 @@ function handleSubmit() {
     ...form.value,
     perm: form.value.perm === null ? undefined : form.value.perm,
   }
+  // 编辑模式下，secret 留空 = 不修改；此时不要把 secret 发给后端（由父组件改走 edit-nosecret）
+  if (isEdit.value && !form.value.secret) {
+    delete (payload as any).secret
+  }
   emit('submit', payload)
 }
+
+// 提交按钮是否可用：新建需填 secret；编辑时可留空
+const submitDisabled = computed(() => !isEdit.value && !form.value.secret)
 </script>
 
 <template>
@@ -131,10 +144,14 @@ function handleSubmit() {
         />
       </div>
       <div class="space-y-1.5">
-        <label class="text-sm font-medium">Secret</label>
+        <label class="text-sm font-medium">
+          Secret
+          <span v-if="isEdit" class="text-xs font-normal text-muted-foreground">（留空表示不修改）</span>
+        </label>
         <input
           v-model="form.secret"
-          required
+          :required="!isEdit"
+          :placeholder="isEdit ? '留空则保持原 Secret 不变' : '请输入 Secret'"
           class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
       </div>
@@ -180,7 +197,8 @@ function handleSubmit() {
     </div>
     <button
       type="submit"
-      class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+      :disabled="submitDisabled"
+      class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
     >
       保存
     </button>

@@ -30,6 +30,11 @@ export interface OidcProviderAdmin extends OidcProvider {
   apipoint: string
 }
 
+// OIDC 编辑载荷：新建时 secret 必填；编辑时若不修改 secret 则用此类型（不携带 secret 字段）
+export type OidcEditNoSecretPayload = Partial<Omit<OidcProviderAdmin, 'secret'>> & {
+  id: string
+}
+
 export interface ServerListData {
   servers: Server[]
   types: string[]
@@ -70,6 +75,9 @@ export const api = {
       http.post('/api/oidcConfig/admin/create', data).then(r => r.data),
     edit: (data: Partial<OidcProviderAdmin> & { id: string }) =>
       http.post('/api/oidcConfig/admin/edit', data).then(r => r.data),
+    // 编辑但不修改 secret（后端 /admin/edit-nosecert，覆盖式更新除 secret 外字段）
+    editNoSecret: (data: OidcEditNoSecretPayload) =>
+      http.post('/api/oidcConfig/admin/edit-nosecert', data).then(r => r.data),
     delete: (clientId: string) =>
       http.post('/api/oidcConfig/admin/delete', { clientId }).then(r => r.data),
   },
@@ -128,7 +136,5 @@ export const api = {
     oidc: (data: Record<string, any>) =>
       http.post('/api/setup/oidc', data).then(r => r.data),
     promote: () => http.post('/api/setup/promote').then(r => r.data),
-    promoteById: (userid: string) =>
-      http.post('/api/setup/promote-by-id', { userid }).then(r => r.data),
   },
 }

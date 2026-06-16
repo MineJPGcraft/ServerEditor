@@ -18,6 +18,10 @@ oidcConfigRouter.get("/admin/list",async(req,res)=>
     try
     {
         let oidcInfo=(await db.query("SELECT id,name,secret,perm,frontend,redirect_uri,apipoint,auth_url FROM oidc;")).rows;
+        for(let i=0;i<oidcInfo.length;i++)
+        {
+            oidcInfo[i].secret="qwq";
+        }
         res.json(oidcInfo);
     }
     catch(err)
@@ -54,6 +58,34 @@ oidcConfigRouter.post("/admin/edit",async(req,res)=>
             return res.status(400).send('Missing id');
         }
         const fields=['name','secret','perm','frontend','redirect_uri','apipoint','auth_url'];
+        const updates=fields.filter(f=>req.body[f]!==undefined);
+        if(updates.length===0)
+        {
+            return res.status(400).send('No fields to update');
+        }
+        const setClauses=updates.map((f,i)=>`${f}=$${i+1}`).join(',');
+        const values=[...updates.map(f=>req.body[f]),req.body.id];
+        const result=await db.query(`UPDATE oidc SET ${setClauses} WHERE id=$${values.length};`,values);
+        if(result.rowCount<=0)
+        {
+            return res.status(404).send('OIDC provider not found');
+        }
+        res.send('Success.');
+    }
+    catch(err)
+    {
+        res.status(500).send(err.message);
+    }
+});
+oidcConfigRouter.post("/admin/edit-nosecert",async(req,res)=>
+{
+    try
+    {
+        if(!req.body.id)
+        {
+            return res.status(400).send('Missing id');
+        }
+        const fields=['name','perm','frontend','redirect_uri','apipoint','auth_url'];
         const updates=fields.filter(f=>req.body[f]!==undefined);
         if(updates.length===0)
         {

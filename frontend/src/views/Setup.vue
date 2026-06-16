@@ -71,18 +71,6 @@ async function handlePromote() {
     toast.error(e.response?.data || '提升失败，请确保已登录')
   }
 }
-
-async function handlePromoteById() {
-  const userid = prompt('请输入要提升为超级管理员的用户 ID:')
-  if (!userid) return
-  try {
-    await api.setup.promoteById(userid)
-    toast.success(`已提升用户 ${userid}`)
-    await checkSetupStatus()
-  } catch (e: any) {
-    toast.error(e.response?.data || '提升失败')
-  }
-}
 </script>
 
 <template>
@@ -194,12 +182,6 @@ async function handlePromoteById() {
           >
             提升自己为超级管理员
           </button>
-          <div class="mt-4 border-t pt-4">
-            <p class="text-xs text-muted-foreground mb-2">或者按用户 ID 提升其他用户：</p>
-            <button @click="handlePromoteById" class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs hover:bg-accent">
-              按 ID 提升
-            </button>
-          </div>
           <div class="mt-4">
             <button @click="currentStep = 2" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">上一步</button>
           </div>

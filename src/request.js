@@ -7,7 +7,11 @@ const MAX_PENDING_PER_USER = parseInt(process.env.MAX_PENDING_PER_USER) || 3;
 userRequestRouter.get("/list", async (req, res) => {
     try {
         const result = await db.query(
-            "SELECT * FROM server_requests WHERE userid=$1 ORDER BY created_at DESC;",
+            `SELECT sr.*, s.name as target_name
+             FROM server_requests sr
+             LEFT JOIN server s ON sr.target_uuid = s.uuid
+             WHERE sr.userid=$1
+             ORDER BY sr.created_at DESC;`,
             [req.sessionUserId]
         );
         res.json(result.rows);
@@ -95,6 +99,14 @@ userRequestRouter.post("/submit", async (req, res) => {
         if (existing.status !== 'draft') {
             await client.query('ROLLBACK');
             return res.status(400).send('Can only submit draft requests');
+        }
+        if(existing.req_type!=="delete")
+        {
+            const reqs = ['name','type','version','icon','description','link'];
+            let data=(existing.data);
+            if (reqs.filter(i => !data[i]).length > 0) {
+                return res.status(400).send('Missing required fields in request data');
+            }
         }
 
         // 锁定该用户所有pending请求，防止并发增多

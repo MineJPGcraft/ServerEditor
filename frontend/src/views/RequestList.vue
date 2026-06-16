@@ -94,7 +94,23 @@ async function handleDelete(id: string) {
           <tr v-for="req in requests" :key="req.id" class="border-b last:border-0">
             <td class="px-4 py-3"><RequestServerName :req="req" /></td>
             <td class="px-4 py-3"><ReqTypeBadge :type="req.req_type" /></td>
-            <td class="px-4 py-3"><RequestStatusBadge :status="req.status" /></td>
+            <td class="px-4 py-3">
+              <div class="flex flex-col gap-1">
+                <RequestStatusBadge :status="req.status" />
+                <span
+                  v-if="req.status === 'rejected' && req.reject_reason"
+                  class="text-xs text-destructive/90 break-all"
+                >
+                  驳回原因：{{ req.reject_reason }}
+                </span>
+                <span
+                  v-else-if="req.status === 'rejected'"
+                  class="text-xs text-muted-foreground"
+                >
+                  未提供驳回原因
+                </span>
+              </div>
+            </td>
             <td class="px-4 py-3 text-sm text-muted-foreground">{{ new Date(req.created_at).toLocaleDateString('zh-CN') }}</td>
             <td class="px-4 py-3">
               <div class="flex items-center justify-end gap-1">

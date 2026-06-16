@@ -114,32 +114,33 @@ async function confirmDelete() {
     <div v-if="showFormDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showFormDialog = false">
       <div class="w-full max-w-lg rounded-lg border bg-card p-6 shadow-lg mx-4 max-h-[90vh] overflow-y-auto">
         <h2 class="text-lg font-semibold mb-4">{{ isCreate ? '新建服务器' : '编辑服务器' }}</h2>
+        <form @submit.prevent="saveForm">
         <div class="space-y-3">
           <div class="space-y-1.5">
-            <label class="text-sm font-medium">名称</label>
-            <input v-model="form.name" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+            <label class="text-sm font-medium">名称 <span class="text-destructive">*</span></label>
+            <input v-model="form.name" required class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1.5">
-              <label class="text-sm font-medium">类型</label>
-              <Combobox v-model="form.type" :options="types" placeholder="选择或输入类型" />
+              <label class="text-sm font-medium">类型 <span class="text-destructive">*</span></label>
+              <Combobox v-model="form.type" :options="types" placeholder="选择或输入类型" required />
             </div>
             <div class="space-y-1.5">
-              <label class="text-sm font-medium">版本</label>
-              <Combobox v-model="form.version" :options="versions" placeholder="选择或输入版本" />
+              <label class="text-sm font-medium">版本 <span class="text-destructive">*</span></label>
+              <Combobox v-model="form.version" :options="versions" placeholder="选择或输入版本" required />
             </div>
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium">图标 URL</label>
-            <input v-model="form.icon" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+            <label class="text-sm font-medium">图标 URL <span class="text-destructive">*</span></label>
+            <input v-model="form.icon" required class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium">描述</label>
-            <textarea v-model="form.description" rows="3" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm" />
+            <label class="text-sm font-medium">描述 <span class="text-destructive">*</span></label>
+            <textarea v-model="form.description" required rows="3" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm" />
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium">链接</label>
-            <input v-model="form.link" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+            <label class="text-sm font-medium">链接 <span class="text-destructive">*</span></label>
+            <input v-model="form.link" required class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
           </div>
           <div class="space-y-1.5">
             <label class="text-sm font-medium">IP (可选)</label>
@@ -147,9 +148,10 @@ async function confirmDelete() {
           </div>
         </div>
         <div class="flex justify-end gap-2 mt-6">
-          <button @click="showFormDialog = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
-          <button @click="saveForm" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">保存</button>
+          <button type="button" @click="showFormDialog = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
+          <button type="submit" class="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">保存</button>
         </div>
+        </form>
       </div>
     </div>
 

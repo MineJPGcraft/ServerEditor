@@ -38,9 +38,10 @@ server-list/
 
 | 权限等级 | 角色 | 可访问功能 |
 |----------|------|-----------|
+| 0 | 封禁用户 | 可登录但无任何操作权限 |
 | 1 | 普通用户 | 提交服务器操作申请（需管理员审核） |
 | 2 | 管理员 | 直接增删改服务器、审核用户申请 |
-| 3 | 超级管理员 | perm=2 全部功能 + 用户管理、封禁用户、OIDC 配置 |
+| 3 | 超级管理员 | perm=2 全部功能 + 用户管理（封禁/删除用户）、OIDC 配置 |
 
 > Token 登录默认授予 perm=3。OIDC 提供商可设置权限覆写，实际权限取配置值与用户数据库权限的最大值。
 
@@ -83,7 +84,7 @@ server-list/
 **普通用户（perm=1）：**
 1. 点击"添加服务器"跳转至申请表单，或右键服务器选择"申请编辑"
 2. 填写信息后保存草稿或直接提交审核
-3. 在"我的申请"页查看申请状态，可撤回/修改/删除草稿
+3. 在"我的申请"页查看申请状态，可撤回/修改/删除草稿；被驳回的申请会显示驳回原因
 4. 待审核申请上限由 `MAX_PENDING_PER_USER` 环境变量控制（默认 3）
 
 **管理员（perm≥2）审核：**
@@ -93,8 +94,10 @@ server-list/
 
 ### 用户管理（perm ≥ 3）
 - 查看所有已登录过的用户
-- 修改用户的权限等级（1/2/3）
-- 封禁/解封用户（封禁后立即使其所有会话失效）
+- 修改用户的权限等级（0/1/2/3，0 表示封禁）
+- 删除用户（删除后立即使其所有会话失效）
+
+> 封禁 = 将用户权限设为 0（仍可登录但无任何操作权限）。
 
 ### OIDC 配置管理（perm ≥ 3）
 - 增删改 OIDC 提供商配置
@@ -118,7 +121,7 @@ server-list/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/request/list` | 获取当前用户所有申请 |
+| GET | `/api/request/list` | 获取当前用户所有申请（含 `target_name`） |
 | POST | `/api/request/create` | 创建草稿 |
 | POST | `/api/request/edit` | 修改草稿（或将已拒绝申请重置为草稿） |
 | POST | `/api/request/submit` | 提交草稿为待审核 |
@@ -132,10 +135,10 @@ server-list/
 | POST | `/api/admin/create` | 新增服务器 |
 | POST | `/api/admin/edit` | 修改服务器 |
 | POST | `/api/admin/delete` | 删除服务器 |
-| GET | `/api/admin/request/list` | 获取所有待审核申请 |
+| GET | `/api/admin/request/list` | 获取所有待审核申请（含 `username`、`target_name`） |
 | POST | `/api/admin/request/edit` | 编辑申请数据 |
 | POST | `/api/admin/request/approve` | 审核通过（可选 `force_create` 强制新建） |
-| POST | `/api/admin/request/reject` | 拒绝申请（可附理由） |
+| POST | `/api/admin/request/reject` | 拒绝申请（可附理由，用户在申请列表可见） |
 | POST | `/api/admin/request/submit` | 将草稿提交为待审核（绕过用户数量限制） |
 | POST | `/api/admin/tag/{tag类型}/edit` | 修改某个tag |
 
@@ -144,11 +147,12 @@ server-list/
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/admin/user/list` | 获取用户列表 |
-| POST | `/api/admin/user/edit` | 修改用户权限 |
-| POST | `/api/admin/user/ban` | 封禁/解封用户（封禁时删除其所有会话） |
-| GET | `/api/oidcConfig/admin/list` | 获取 OIDC 完整配置列表 |
+| POST | `/api/admin/user/edit` | 修改用户权限（0=封禁） |
+| POST | `/api/admin/user/delete` | 删除用户（删除时删除其所有会话） |
+| GET | `/api/oidcConfig/admin/list` | 获取 OIDC 完整配置列表（secret 脱敏返回） |
 | POST | `/api/oidcConfig/admin/create` | 新增 OIDC 提供商 |
-| POST | `/api/oidcConfig/admin/edit` | 修改 OIDC 提供商 |
+| POST | `/api/oidcConfig/admin/edit` | 修改 OIDC 提供商（含 secret） |
+| POST | `/api/oidcConfig/admin/edit-nosecert` | 修改 OIDC 提供商，但**不覆盖** secret |
 | POST | `/api/oidcConfig/admin/delete` | 删除 OIDC 提供商 |
 
 ## 环境变量
@@ -182,4 +186,4 @@ docker run -d \
 
 ## 交互式用户配置
 
-在无任何超管用户的情况下，并且token未配置，则/setup路径开放，可进行交互配置，请注意，使用token登录一次后会留下名为token的超管用户
+在无任何超管用户的情况下，并且 token 未配置，则 `/setup` 路径开放，可进行交互配置（仅支持登录后提升**当前用户**自己为超管）。请注意，使用 token 登录一次后会留下名为 `token` 的超管用户。

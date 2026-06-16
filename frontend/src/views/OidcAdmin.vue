@@ -44,9 +44,18 @@ async function handleSubmit(data: Partial<OidcProviderAdmin>) {
     if (isCreate.value) {
       await api.oidc.create(data)
       toast.success('OIDC 已创建')
-    } else {
+    } else if (data.id === undefined) {
+      toast.error('缺少 OIDC ID')
+      return
+    } else if (data.secret) {
+      // 填了新 secret → 走可改 secret 的编辑接口
       await api.oidc.edit(data as any)
       toast.success('OIDC 已更新')
+    } else {
+      // 未填 secret → 走不修改 secret 的接口，避免被覆盖
+      const { secret: _omit, ...rest } = data
+      await api.oidc.editNoSecret(rest as any)
+      toast.success('OIDC 已更新（Secret 未改动）')
     }
     showFormDialog.value = false
     fetchProviders()
@@ -136,7 +145,7 @@ async function confirmDelete() {
     <div v-if="showFormDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showFormDialog = false">
       <div class="w-full max-w-2xl rounded-lg border bg-card p-6 shadow-lg mx-4 max-h-[90vh] overflow-y-auto">
         <h2 class="text-lg font-semibold mb-4">{{ isCreate ? '新建 OIDC' : '编辑 OIDC' }}</h2>
-        <OidcForm :initial="editingProvider" @submit="handleSubmit" />
+        <OidcForm :mode="isCreate ? 'create' : 'edit'" :initial="editingProvider" @submit="handleSubmit" />
         <div class="flex justify-start mt-4">
           <button @click="showFormDialog = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
         </div>

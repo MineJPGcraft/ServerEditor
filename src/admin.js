@@ -133,9 +133,10 @@ admin_router.post("/delete", async(req, res) => {
 admin_router.get("/request/list", async(req, res) => {
     try {
         const result = await db.query(
-            `SELECT sr.*, u.name as username
+            `SELECT sr.*, u.name as username, s.name as target_name
              FROM server_requests sr
              LEFT JOIN users u ON sr.userid = u.id
+             LEFT JOIN server s ON sr.target_uuid = s.uuid
              WHERE sr.status='pending'
              ORDER BY sr.created_at ASC;`
         );

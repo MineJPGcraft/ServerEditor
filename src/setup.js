@@ -1,5 +1,5 @@
 import express from "express";
-import { db } from "./db.js";
+import {db, rd} from "./db.js";
 import { checkSession } from "./auth.js";
 export const setupRouter = express.Router();
 
@@ -45,22 +45,9 @@ setupRouter.post('/oidc', checkSetupMode, async (req, res) => {
 setupRouter.post('/promote', checkSetupMode, checkSession(0), async (req, res) => {
     try {
         await db.query("UPDATE users SET perm=3 WHERE id=$1;", [req.sessionUserId]);
-        await db.query("UPDATE session SET perm=3 WHERE uuid=$1;", [req.cookies.session_id]);
-        res.send('Success.');
-    } catch (err) {
-        res.status(500).send(err.message);
-    }
-});
-
-setupRouter.post('/promote-by-id', checkSetupMode, async (req, res) => {
-    try {
-        const { userid } = req.body;
-        if (!userid) return res.status(400).send('Missing userid');
-        const result = await db.query(
-            "UPDATE users SET perm=3 WHERE id=$1;",
-            [userid]
-        );
-        if (result.rowCount === 0) return res.status(404).send('User not found');
+        // await db.query("UPDATE session SET perm=3 WHERE uuid=$1;", [req.cookies.session_id]);
+        await rd.del(await rd.sMembers("user:"+req.sessionUserId));
+        await rd.del("user:"+req.sessionUserId);
         res.send('Success.');
     } catch (err) {
         res.status(500).send(err.message);

@@ -64,7 +64,7 @@ authRouter.get("/callback", async (req, res) => {
         await rd.hSet("session:"+session_id,{userid:json_info.sub,perm:Math.max(oidc_client[0].perm||1,user_info[0]?.perm||1)});
         await rd.expire("session:"+session_id,86400);
         await rd.sAdd("user:"+json_info.sub,"session:"+session_id);
-        await rd.expire("user:"+json_info.sub,86400);
+        await rd.expire("user:"+json_info.sub,864000);
         res.cookie('session_id',session_id,{httpOnly:true});
         client.query("COMMIT;");
         return res.redirect(oidc_client[0].frontend||'/');
@@ -118,10 +118,10 @@ authRouter.post("/token", async (req, res) => {
                 VALUES ($1,$2,$3);`,["token","token",3]);
         }
         let session_id=crypto.randomUUID();
-        await rd.hSet("session:"+session_id,{user_id:"token",perm:3});
+        await rd.hSet("session:"+session_id,{userid:"token",perm:3});
         await rd.expire("session:"+session_id,86400);
         await rd.sAdd("user:token","session:"+session_id);
-        await rd.expire("user:token",86400);
+        await rd.expire("user:token",864000);
         res.cookie('session_id',session_id,{httpOnly:true});
         return res.send("Success");
     }
@@ -143,7 +143,7 @@ export function checkSession(level)
                 return res.status(403).send("Not authorized");
             }
             const session_info=await rd.hGetAll("session:"+session);
-            if(session_info==={})
+            if(!session_info || !session_info.userid)
             {
                 return res.status(403).send("Not authorized");
             }
