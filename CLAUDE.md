@@ -1,0 +1,177 @@
+# CLAUDE.md
+
+这是一份给 Claude Code (或其他 AI 编程助手) 的代码库指南。
+
+## 项目概述
+
+MCJPG 服务器列表平台 — 一个支持多用户、OIDC 单点登录、审核工作流的 Minecraft 服务器目录管理系统。
+
+**作者:** zzfx1166 &emsp; **许可证:** MIT
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| **后端** | Node.js + Express 5.2.1 (ES Modules, `"type": "module"`) |
+| **数据库** | PostgreSQL (pg Pool, `max: 20`) |
+| **缓存/会话** | Redis (node-redis v6) |
+| **认证** | Token 登录 + OIDC/OAuth 2.0 SSO (jsonwebtoken 解码 id_token) |
+| **前端** | Vue 3 + TypeScript + Vite 5 |
+| **样式** | Tailwind CSS 3 + Radix Vue + Lucide Icons |
+| **表单** | vee-validate + zod |
+| **部署** | Docker 多阶段构建 (Node 20 Alpine) |
+
+## 项目结构
+
+```
+ServerEditor/
+├── src/                      # 后端源码
+│   ├── index.js              # 入口：Express app、路由挂载、静态文件、Redis 缓存逻辑
+│   ├── db.js                 # PostgreSQL 连接池、Redis 客户端、数据库初始化 (CREATE TABLE IF NOT EXISTS)
+│   ├── auth.js               # 认证：Token 登录、OIDC 回调、登出、checkSession 中间件
+│   ├── admin.js              # 管理员路由：服务器 CRUD、用户管理、请求审核 (approve/reject)、Tag 编辑
+│   ├── request.js            # 用户申请路由：创建/编辑/提交/撤回/删除申请
+│   ├── oidc-config.js        # OIDC 提供商配置 CRUD
+│   ├── setup.js              # 首次设置向导 (无超管时开放 /setup)
+├── frontend/                 # Vue 3 前端
+│   ├── src/
+│   │   ├── main.ts           # Vue 应用入口、路由创建、主题初始化
+│   │   ├── App.vue           # 根组件 (SidebarLayout + Toaster)
+│   │   ├── api/index.ts      # Axios 封装、所有 API 接口 TypeScript 定义
+│   │   ├── router/index.ts   # 路由定义 + 权限守卫 (meta.minPerm)
+│   │   ├── composables/      # Vue composables
+│   │   │   ├── useAuth.ts     # 认证状态 (perm, userId, login/logout/checkAuth)
+│   │   │   ├── useServers.ts  # 服务器列表 + 标签数据获取
+│   │   │   └── useTheme.ts    # 暗色/亮色主题切换
+│   │   ├── layouts/SidebarLayout.vue  # 侧边栏布局 (导航/用户信息/折叠)
+│   │   ├── views/            # 页面组件
+│   │   │   ├── ServerList.vue     # 服务器列表 (搜索/筛选/右键菜单)
+│   │   │   ├── ServerManage.vue   # 服务器管理 (CRUD 表单)
+│   │   │   ├── RequestList.vue    # 我的申请列表
+│   │   │   ├── RequestForm.vue    # 申请表单 (新建/编辑)
+│   │   │   ├── RequestAdmin.vue   # 审核管理
+│   │   │   ├── UserAdmin.vue      # 用户管理
+│   │   │   ├── TagManage.vue      # Tag 管理 (类型/版本)
+│   │   │   ├── OidcAdmin.vue      # OIDC 配置管理
+│   │   │   ├── Login.vue          # 登录页
+│   │   │   └── Setup.vue          # 首次安装向导
+│   │   └── components/      # 共享组件 (Combobox, ServerCard, ReqTypeBadge 等)
+│   ├── vite.config.ts        # Vite 配置 (端口 5173, /api 代理到 :8080)
+│   └── tailwind.config.ts    # Tailwind 配置
+├── Dockerfile                # 多阶段 Docker 构建
+└── package.json              # 根项目 (仅后端脚本)
+```
+
+## 数据库表
+
+| 表名 | 关键字段 | 说明 |
+|------|---------|------|
+| `server` | `uuid` (PK, UUID), `name`, `type`, `version`, `icon`, `description`, `link`, `IP` (nullable) | 服务器列表 |
+| `oidc` | `id` (PK, text), `name`, `secret`, `perm`, `frontend`, `redirect_uri`, `apipoint`, `auth_url` | OIDC 提供商配置 |
+| `users` | `id` (PK, text), `name`, `perm` (default 1) | 用户权限 |
+| `server_requests` | `id` (PK, UUID), `userid`, `req_type` (create/edit/delete), `target_uuid`, `data` (jsonb), `status` (draft/pending/approved/rejected), `reject_reason` | 审核工作流 |
+| `tags` | `name` (PK, text), `tag` (JSON text array) | 预定义标签 (types, versions) |
+
+## 权限体系 (4 级)
+
+| 等级 | 角色 | 能力 |
+|------|------|------|
+| 0 | 封禁用户 | 可登录，无任何操作权限 |
+| 1 | 普通用户 | 浏览服务器、提交编辑/创建/删除申请 |
+| 2 | 管理员 | 直接增删改服务器、审核申请、管理 Tag |
+| 3 | 超级管理员 | 管理员全部功能 + 用户管理 (封禁/删除)、OIDC 配置管理 |
+
+- Token 登录始终获得 `perm=3` (用户 ID: `"token"`)
+- OIDC 登录权限: `max(oidc_provider.perm, user.perm)` 默认为 1
+- 权限检查通过 `checkSession(level)` 中间件，检查 `req.sessionPerm >= level`
+
+## Redis 数据模型
+
+| Key | 类型 | 内容 | TTL |
+|-----|------|------|-----|
+| `server` | string | JSON (`{servers, types, versions}`) | 1800s |
+| `session:{uuid}` | hash | `{userid, perm}` | 86400s (24h) |
+| `user:{userid}` | set | `session:{uuid}` 集合 | 864000s (10d) |
+
+- 修改服务器 / Tag 后调用 `rd.del("server")` 使缓存失效
+- 用户权限变更 / 删除时 `rd.del(rd.sMembers(...))` 清除其所有会话
+- `index.js` 中 `/api/getjson` 和 `/api/getjson-fork` 都有 Redis 缓存优先 + DB 回退逻辑
+
+## 审核工作流
+
+```
+普通用户:
+  POST /api/request/create  → draft
+  POST /api/request/edit    → 修改 draft 或 rejected
+  POST /api/request/submit  → pending (每个用户最多 MAX_PENDING_PER_USER 个
+                               默认 3，使用 FOR UPDATE 防并发)
+  POST /api/request/cancel   → 退回 draft
+  POST /api/request/delete   → 删除 draft
+
+管理员:
+  GET  /api/admin/request/list       → 查看所有 pending
+  POST /api/admin/request/edit       → 编辑申请内容
+  POST /api/admin/request/approve    → 审核通过 (edit 类目标不存在时
+                                        可 force_create 转为新建)
+  POST /api/admin/request/reject     → 拒绝 (附 reject_reason)
+  POST /api/admin/request/submit     → 绕过数量限制直接提交
+```
+
+## 会话认证全流程
+
+### checkSession 中间件
+
+1. 从 `req.cookies.session_id` 获取会话 ID
+2. 从 Redis 读取 `session:{id}` hash
+3. 设置 `req.sessionPerm` 和 `req.sessionUserId`
+4. 检查 `perm >= level` (不传 level 时仅验证登录状态)
+
+挂载方式: `app.use('/api/admin', checkSession(2))` — 所有 `/api/admin/*` 路由都需 perm≥2。
+
+### OIDC 回调流程
+
+1. 用户访问 `/api/auth/callback?code=...&state=provider_id`
+2. 通过 state (provider ID) 查 `oidc` 表获取提供商配置
+3. 用 axios POST 向 `apipoint` 发送 `authorization_code` 换取 token
+4. `jwt.decode(id_token)` 获取 `sub` 和 `name`
+5. 新用户插入 `users` 表 (初始 perm 为提供商配置值或 1)
+6. 创建 Redis session，设置 cookie
+7. 重定向到 `frontend` URL 或 `/`
+
+## 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `PORT` | `8080` | 后端端口 |
+| `TOKEN` | — | Token 登录令牌 (不设则禁用) |
+| `MAX_PENDING_PER_USER` | `3` | 每用户最大待审核数 |
+| `DB_USER` | `postgres` | 数据库用户 |
+| `DB_PASSWORD` | `password` | 数据库密码 |
+| `DB_HOST` | `localhost` | 数据库主机 |
+| `DB_PORT` | `5432` | 数据库端口 |
+| `DB_NAME` | `serverlist` | 数据库名 |
+| `REDIS_URL` | `redis://localhost:6379` | Redis 地址 |
+
+## 开发命令
+
+```bash
+# 后端 (根目录)
+npm run backend          # node src/index.js
+
+# 前端 (frontend/)
+npm run frontend         # cd frontend && npm run dev  → Vite :5173
+npm run build            # cd frontend && npm run build → 输出到 dist/
+
+# 前端开发代理:  Vite dev server (:5173) 代理 /api → localhost:8080
+```
+
+## 重要注意事项
+
+1. **所有 POST 路由** 使用 `express.json()` 解析 body，通过 cookies 传递会话 (无 CSRF 保护)
+2. **OIDC secret 脱敏**: `/api/oidcConfig/admin/list` 始终返回 `"secret": "qwq"`。两个编辑接口: `admin/edit` (含 secret 更新) 和 `admin/edit-nosecert` (不覆盖 secret)
+3. **`data` JSON 格式不一致**: 后端 `admin/edit` 接收直接对象，`request/*` 中 `data` 字段存储为 `jsonb` 字符串。在 `request/edit` 中前端发送的数据被重新 `JSON.stringify`
+4. **auth.js 第 57 行**: OIDC 登录时 session perm 取自 `user_info[0]?.perm || (oidc_client[0].perm||1)` — 数据库中的用户权限覆盖 OIDC 配置权限
+5. **auth.js 第 141 行**: 如果目标 OIDC 提供商的 `perm === 0`，回调返回 403 (被禁用)
+6. **checkSession 第 148 行**: 内部检查 `level` 为空时跳过权限级别校验 (仅验证登录)
+7. **setup.js**: 仅当 `TOKEN` 未配置且数据库无 `perm>=3` 用户时开放 `/setup` 路由。使用 `/setup/promote` 将当前登录用户提升为超管
+8. **生产部署**: Docker 构建前端产物 (`dist/`) 后由 Express 服务静态文件 + SPA fallback
