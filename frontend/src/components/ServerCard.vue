@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Server } from '@/api'
-import { Pencil, Trash2, FilePen, FileX2 } from 'lucide-vue-next'
+import { Pencil, Trash2, FilePen, FileX2, UserCog } from 'lucide-vue-next'
 
 const props = defineProps<{
   server: Server
@@ -99,6 +99,12 @@ const fallbackIcon =
           {{ server.IP }}
         </button>
       </div>
+
+      <!-- 所有者信息 -->
+      <div v-if="server.owner_name || server.userid" class="flex items-center gap-1 text-xs text-muted-foreground border-t pt-2 mt-2">
+        <UserCog class="h-3 w-3" />
+        <span>{{ server.owner_name || server.userid }}</span>
+      </div>
     </div>
 
     <!-- Actions -->
@@ -106,7 +112,7 @@ const fallbackIcon =
       v-if="isLoggedIn"
       class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 items-center"
     >
-      <!-- 管理员：直接操作 -->
+      <!-- 管理员：直接操作（无需审核） -->
       <template v-if="isAdmin">
         <button
           @click="emit('edit', server)"
@@ -122,24 +128,25 @@ const fallbackIcon =
         >
           <Trash2 class="h-3.5 w-3.5" />
         </button>
-        <span class="w-px h-4 bg-border mx-0.5" />
       </template>
 
-      <!-- 申请类操作（普通用户 + 管理员调试） -->
-      <button
-        @click="emit('requestEdit', server)"
-        class="h-7 w-7 inline-flex items-center justify-center rounded-md border border-dashed bg-background hover:bg-accent"
-        title="申请修改（需审核）"
-      >
-        <FilePen class="h-3.5 w-3.5" />
-      </button>
-      <button
-        @click="emit('requestDelete', server)"
-        class="h-7 w-7 inline-flex items-center justify-center rounded-md border border-dashed bg-background hover:bg-destructive/10 hover:text-destructive"
-        title="申请删除（需审核）"
-      >
-        <FileX2 class="h-3.5 w-3.5" />
-      </button>
+      <!-- 普通用户：申请操作（需审核） -->
+      <template v-else>
+        <button
+          @click="emit('requestEdit', server)"
+          class="h-7 w-7 inline-flex items-center justify-center rounded-md border border-dashed bg-background hover:bg-accent"
+          title="申请修改（需审核）"
+        >
+          <FilePen class="h-3.5 w-3.5" />
+        </button>
+        <button
+          @click="emit('requestDelete', server)"
+          class="h-7 w-7 inline-flex items-center justify-center rounded-md border border-dashed bg-background hover:bg-destructive/10 hover:text-destructive"
+          title="申请删除（需审核）"
+        >
+          <FileX2 class="h-3.5 w-3.5" />
+        </button>
+      </template>
     </div>
   </div>
 </template>

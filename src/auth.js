@@ -44,6 +44,11 @@ authRouter.get("/callback", async (req, res) => {
                 (id,name,perm)
                 VALUES ($1,$2,$3);`,[json_info.sub,json_info.name||json_info.sub,oidc_client[0].perm||1]);
         }
+        else if(json_info.name && json_info.name !== user_info[0].name)
+        {
+            // 已有用户登录时同步 OIDC 返回的用户名
+            await client.query("UPDATE users SET name=$1 WHERE id=$2;",[json_info.name, json_info.sub]);
+        }
         // else if(user_info[0].banned)
         // {
         //     // 封禁用户仍允许登录，但 perm=0
@@ -164,6 +169,11 @@ export function checkSession(level)
         }
     }
 }
-authRouter.get("/check", checkSession(0), (req, res) => {
-    res.json({ perm: req.sessionPerm });
+authRouter.get("/check", checkSession(0), async (req, res) => {
+    try {
+        const user = await db.query("SELECT name FROM users WHERE id=$1", [req.sessionUserId]);
+        res.json({ perm: req.sessionPerm, userId: req.sessionUserId, userName: user.rows[0]?.name || req.sessionUserId });
+    } catch {
+        res.json({ perm: req.sessionPerm, userId: req.sessionUserId });
+    }
 });

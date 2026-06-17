@@ -9,7 +9,7 @@ import {
   LogIn, LogOut, ChevronLeft, ChevronRight, Menu
 } from 'lucide-vue-next'
 
-const { perm, userId, isLoggedIn, isAdmin, isSuperAdmin, checkAuth, logout } = useAuth()
+const { perm, userId, userName, isLoggedIn, isAdmin, isSuperAdmin, checkAuth, logout } = useAuth()
 const router = useRouter()
 const route = useRoute()
 const collapsed = ref(false)
@@ -98,14 +98,17 @@ function closeMobile() {
         </router-link>
       </nav>
 
-      <!-- Bottom section: theme + user -->
+      <!-- Bottom section: user info -> theme toggle -> logout -->
       <div class="border-t p-3 space-y-1">
-        <ThemeToggle :collapsed="collapsed" />
-        <template v-if="isLoggedIn">
-          <div v-if="!collapsed" class="text-xs text-muted-foreground px-1 pt-2">
-            <div class="truncate font-medium text-foreground">{{ userId }}</div>
+        <!-- 用户信息（在主题切换上方） -->
+        <template v-if="isLoggedIn && !collapsed">
+          <div class="text-xs text-muted-foreground px-1 pb-1">
+            <div class="truncate font-medium text-foreground">{{ userName || userId }}</div>
             <div class="mt-0.5">{{ permLabel }}</div>
           </div>
+        </template>
+        <ThemeToggle :collapsed="collapsed" />
+        <template v-if="isLoggedIn">
           <button
             @click="logout().then(() => router.push('/'))"
             class="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive w-full transition-colors"

@@ -14,6 +14,8 @@ export interface Server {
   description: string
   link: string
   IP: string | null
+  userid?: string | null
+  owner_name?: string | null
 }
 
 export interface OidcProvider {
@@ -84,12 +86,15 @@ export const api = {
 
   servers: {
     getJson: () => http.get<ServerListData>('/api/getjson').then(r => r.data),
+    adminList: () => http.get<Server[]>('/api/admin/server/list').then(r => r.data),
     create: (data: Partial<Server>) =>
       http.post('/api/admin/create', data).then(r => r.data),
     edit: (data: Partial<Server> & { uuid: string }) =>
       http.post('/api/admin/edit', data).then(r => r.data),
     delete: (uuid: string) =>
       http.post('/api/admin/delete', { uuid }).then(r => r.data),
+    transfer: (uuid: string, userid: string) =>
+      http.post('/api/admin/transfer', { uuid, userid }).then(r => r.data),
   },
 
   requests: {
@@ -122,8 +127,10 @@ export const api = {
     list: () => http.get<UserInfo[]>('/api/admin/user/list').then(r => r.data),
     edit: (id: string, perm: number) =>
       http.post('/api/admin/user/edit', { id, perm }).then(r => r.data),
-    delete: (id: string) =>
-      http.post('/api/admin/user/delete', { id }).then(r => r.data),
+    delete: (id: string, action?: string, targetUserId?: string) =>
+      http.post('/api/admin/user/delete', { id, action, target_userid: targetUserId }).then(r => r.data),
+    servers: (userId: string) =>
+      http.get(`/api/admin/user/servers?userId=${encodeURIComponent(userId)}`).then(r => r.data),
   },
 
   tags: {
