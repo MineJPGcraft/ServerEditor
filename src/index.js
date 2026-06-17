@@ -13,6 +13,7 @@ import {setupRouter} from "./setup.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
+app.set('json spaces', 2);
 const port = process.env.PORT || 8080;
 await dbinit();
 await rd.connect();
