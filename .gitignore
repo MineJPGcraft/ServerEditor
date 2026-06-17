@@ -1,9 +1,6 @@
 .idea
 node_modules
 frontend/node_modules
-.claude
-Claude.md
-plan.md
 yarn.lock
 data
 /frontend/dist/assets/Combobox.vue_vue_type_script_setup_true_lang-C_spjaDA.js
