@@ -87,6 +87,37 @@ ServerEditor/
 - OIDC 登录权限: `max(oidc_provider.perm, user.perm)` 默认为 1
 - 权限检查通过 `checkSession(level)` 中间件，检查 `req.sessionPerm >= level`
 
+## 服务器列表 API
+
+### `GET /api/getjson` 和 `GET /api/getjson-fork`
+
+两个端点逻辑相同，均返回统一的 `ServerListData` 结构：
+
+```json
+{
+  "types":    ["Vanilla", "Fabric", "Forge", "…"],
+  "versions": ["1.21.5", "1.21.4", "…"],
+  "servers":  [
+    {
+      "uuid": "…",
+      "name": "…",
+      "type": "…",
+      "version": "…",
+      "icon": "…",
+      "description": "…",
+      "link": "…",
+      "IP": "…",
+      "userid": "…",
+      "owner_name": "…"
+    }
+  ]
+}
+```
+
+- **缓存优先**：先查 Redis key `server`（TTL 1800s），命中直接返回
+- **DB 回退**：缓存未命中时，`getjson()` 从 PostgreSQL 查询 `server LEFT JOIN users` + 两条 `tags` 查询，组装结果后写入 Redis 再返回
+- 缓存失效：任何服务器 CRUD / Tag 编辑 / 所有权转移操作后调用 `rd.del("server")`
+
 ## 服务器所有权机制
 
 ### 核心原则
@@ -124,13 +155,12 @@ ServerEditor/
 
 | Key | 类型 | 内容 | TTL |
 |-----|------|------|-----|
-| `server` | string | JSON (`{servers, types, versions}`) | 1800s |
+| `server` | string | JSON `{types, versions, servers}` | 1800s |
 | `session:{uuid}` | hash | `{userid, perm}` | 86400s (24h) |
 | `user:{userid}` | set | `session:{uuid}` 集合 | 864000s (10d) |
 
 - 修改服务器 / Tag / 转移所有权后调用 `rd.del("server")` 使缓存失效
 - 用户权限变更 / 删除时 `rd.del(rd.sMembers(...))` 清除其所有会话
-- `index.js` 中 `/api/getjson` 和 `/api/getjson-fork` 都有 Redis 缓存优先 + DB 回退逻辑
 
 ## 审核工作流
 
@@ -198,20 +228,4 @@ npm run backend          # node src/index.js
 
 # 前端 (frontend/)
 npm run frontend         # cd frontend && npm run dev  → Vite :5173
-npm run build            # cd frontend && npm run build → 输出到 dist/
-
-# 前端开发代理:  Vite dev server (:5173) 代理 /api → localhost:8080
 ```
-
-## 重要注意事项
-
-1. **所有 POST 路由** 使用 `express.json()` 解析 body，通过 cookies 传递会话 (无 CSRF 保护)
-2. **OIDC secret 脱敏**: `/api/oidcConfig/admin/list` 始终返回 `"secret": "qwq"`。两个编辑接口: `admin/edit` (含 secret 更新) 和 `admin/edit-nosecert` (不覆盖 secret)
-3. **`data` JSON 格式不一致**: 后端 `admin/edit` 接收直接对象，`request/*` 中 `data` 字段存储为 `jsonb` 字符串。在 `request/edit` 中前端发送的数据被重新 `JSON.stringify`
-4. **auth.js OIDC 登录**: session perm 取自 `user_info[0]?.perm || (oidc_client[0].perm||1)` — 数据库中的用户权限覆盖 OIDC 配置权限
-5. **auth.js OIDC 禁用**: 如果目标 OIDC 提供商的 `perm === 0`，回调返回 403 (被禁用)
-6. **checkSession**: 内部检查 `level` 为空时跳过权限级别校验 (仅验证登录)
-7. **`/api/auth/check`** 返回 `{ perm, userId }` — 前端 `useAuth().userId` 从该接口获取当前用户 ID
-8. **setup.js**: 仅当 `TOKEN` 未配置且数据库无 `perm>=3` 用户时开放 `/setup` 路由。使用 `/setup/promote` 将当前登录用户提升为超管
-9. **生产部署**: Docker 构建前端产物 (`dist/`) 后由 Express 服务静态文件 + SPA fallback
-10. **数据库平滑迁移**: `db.js` 中所有表定义使用 `CREATE TABLE IF NOT EXISTS`，并对 `server` 表使用 `ALTER TABLE ADD COLUMN IF NOT EXISTS userid` 确保升级时零宕机

@@ -38,9 +38,9 @@ export type OidcEditNoSecretPayload = Partial<Omit<OidcProviderAdmin, 'secret'>>
 }
 
 export interface ServerListData {
-  servers: Server[]
   types: string[]
   versions: string[]
+  servers: Server[]
 }
 
 export interface ServerRequest {

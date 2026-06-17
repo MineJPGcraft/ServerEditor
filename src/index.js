@@ -92,26 +92,28 @@ let server=app.listen(port, () => {
     console.log("Server started on port " + port);
 });
 server.on("error", console.error);
-async function getjson(req,res)
-{
-    try
-    {
-        let json=((await db.query("SELECT s.*, u.name as owner_name FROM server s LEFT JOIN users u ON s.userid=u.id;")).rows);
-        for(let i = 0; i < json.length; i++)
-        {
-            json[i].id=i;
-        }
-        let qwq={};
-        qwq.servers=json;
-        qwq.types=JSON.parse((await db.query("SELECT tag from tags WHERE name='types'")).rows[0].tag);
-        qwq.versions=JSON.parse((await db.query("SELECT tag from tags WHERE name='versions'")).rows[0].tag);
-        await rd.set("server", JSON.stringify(qwq));
-        await rd.expire("server",1800);
-        res.json(qwq);
+
+async function getjson(req, res) {
+  try {
+    const rows = (await db.query(
+      "SELECT s.*, u.name AS owner_name FROM server s LEFT JOIN users u ON s.userid = u.id"
+    )).rows
+
+    for (let i = 0; i < rows.length; i++) {
+      rows[i].id = i
     }
-    catch(err)
-    {
-        console.log(err);
-        res.status(500).send(err.message);
+
+    const result = {
+      types:    JSON.parse((await db.query("SELECT tag FROM tags WHERE name = 'types'")).rows[0].tag),
+      versions: JSON.parse((await db.query("SELECT tag FROM tags WHERE name = 'versions'")).rows[0].tag),
+      servers:  rows,
     }
+
+    await rd.set("server", JSON.stringify(result))
+    await rd.expire("server", 1800)
+    res.json(result)
+  } catch (err) {
+    console.log(err)
+    res.status(500).send(err.message)
+  }
 }
