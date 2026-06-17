@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useId } from 'vue'
+import { ref, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -7,7 +7,7 @@ const props = withDefaults(defineProps<{
   placeholder?: string
   required?: boolean
 }>(), {
-  placeholder: '请选择或输入',
+  placeholder: '请选择',
   required: false,
 })
 
@@ -15,26 +15,56 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
-const id = useId()
+const isCustom = ref(false)
+const customValue = ref('')
 
-function onInput(e: Event) {
-  emit('update:modelValue', (e.target as HTMLInputElement).value)
+// 判断当前值是否在预设选项中
+watch(() => props.modelValue, (val) => {
+  if (val && !props.options.includes(val)) {
+    isCustom.value = true
+    customValue.value = val
+  } else {
+    isCustom.value = false
+  }
+}, { immediate: true })
+
+function onSelectChange(e: Event) {
+  const val = (e.target as HTMLSelectElement).value
+  if (val === '__custom__') {
+    isCustom.value = true
+    customValue.value = ''
+    emit('update:modelValue', '')
+  } else {
+    isCustom.value = false
+    emit('update:modelValue', val)
+  }
+}
+
+function onCustomInput(e: Event) {
+  const val = (e.target as HTMLInputElement).value
+  customValue.value = val
+  emit('update:modelValue', val)
 }
 </script>
 
 <template>
-  <div class="relative">
+  <div class="space-y-1.5">
+    <select
+      :value="isCustom ? '__custom__' : modelValue"
+      :required="required && !isCustom"
+      class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      @change="onSelectChange"
+    >
+      <option value="" disabled>{{ placeholder }}</option>
+      <option v-for="opt in options" :key="opt" :value="opt">{{ opt }}</option>
+      <option value="__custom__">✏️ 自定义...</option>
+    </select>
     <input
-      :value="modelValue"
-      :list="`combo-${id}`"
+      v-if="isCustom"
+      :value="customValue"
       :placeholder="placeholder"
-      :required="required"
-      autocomplete="off"
       class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      @input="onInput"
+      @input="onCustomInput"
     />
-    <datalist :id="`combo-${id}`">
-      <option v-for="opt in options" :key="opt" :value="opt" />
-    </datalist>
   </div>
 </template>
