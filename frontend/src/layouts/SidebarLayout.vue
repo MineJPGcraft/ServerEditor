@@ -9,7 +9,7 @@ import {
   LogIn, LogOut, ChevronLeft, ChevronRight, Menu
 } from 'lucide-vue-next'
 
-const { perm, userId, isLoggedIn, isAdmin, isSuperAdmin, checkAuth, logout } = useAuth()
+const { perm, userId, userName, isLoggedIn, isAdmin, isSuperAdmin, checkAuth, logout } = useAuth()
 const router = useRouter()
 const route = useRoute()
 const collapsed = ref(false)
@@ -103,7 +103,7 @@ function closeMobile() {
         <ThemeToggle :collapsed="collapsed" />
         <template v-if="isLoggedIn">
           <div v-if="!collapsed" class="text-xs text-muted-foreground px-1 pt-2">
-            <div class="truncate font-medium text-foreground">{{ userId }}</div>
+            <div class="truncate font-medium text-foreground">{{ userName || userId }}</div>
             <div class="mt-0.5">{{ permLabel }}</div>
           </div>
           <button

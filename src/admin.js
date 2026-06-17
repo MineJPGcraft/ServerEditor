@@ -43,6 +43,27 @@ admin_router.post("/user/delete", async(req, res) => {
         {
             return res.status(400).send('Missing required fields');
         }
+        const { action, target_userid } = req.body;
+
+        // 检查用户是否拥有服务器
+        const serversResult = await db.query("SELECT uuid, name FROM server WHERE userid=$1;", [req.body.id]);
+        const serverCount = serversResult.rows.length;
+
+        if (action === 'cascade') {
+            // 级联删除：先删服务器再删用户
+            await db.query("DELETE FROM server WHERE userid=$1;", [req.body.id]);
+        } else if (action === 'transfer' && target_userid) {
+            // 转移服务器所有权
+            await db.query("UPDATE server SET userid=$1 WHERE userid=$2;", [target_userid, req.body.id]);
+        } else if (serverCount > 0) {
+            // 有服务器但未指定操作，返回冲突让前端选择
+            return res.status(409).json({
+                code: 'has_servers',
+                count: serverCount,
+                servers: serversResult.rows
+            });
+        }
+
         const result=await db.query("DELETE FROM users WHERE id=$1;",[req.body.id]);
         if(result.rowCount<=0)
         {
@@ -50,10 +71,23 @@ admin_router.post("/user/delete", async(req, res) => {
         }
         await rd.del(await rd.sMembers("user:"+req.body.id));
         await rd.del("user:"+req.body.id);
+        await rd.del("server");
         res.send("Success.");
     }
     catch(err)
     {
+        res.status(500).send(err.message);
+    }
+});
+
+// 查询用户拥有的服务器数量
+admin_router.get("/user/servers", async(req, res) => {
+    if(req.sessionPerm < 3) return res.status(403).send("Permission denied");
+    try {
+        if(!req.query.userId) return res.status(400).send('Missing userId');
+        const result = await db.query("SELECT uuid, name FROM server WHERE userid=$1;", [req.query.userId]);
+        res.json({ count: result.rows.length, servers: result.rows });
+    } catch(err) {
         res.status(500).send(err.message);
     }
 });
