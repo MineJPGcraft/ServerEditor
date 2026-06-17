@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-这是一个基于 Vue 3 和 Express.js 的服务器列表管理系统，支持服务器的增删改查、OIDC 单点登录、用户权限管理与审核工作流。
+这是一个基于 Vue 3 和 Express.js 的服务器列表管理系统，支持服务器的增删改查、OIDC 单点登录、用户权限管理、服务器所有权机制与审核工作流。
 
 ## 技术栈
 
@@ -13,20 +13,28 @@
 - Redis
 
 ### 前端
-???
+- Vue 3 + TypeScript + Vite 5
+- Tailwind CSS 3 + Radix Vue + Lucide Icons
 
 ## 项目结构
 
 ```
 server-list/
 ├── src/
-│   ├── index.js          # 入口，路由挂载
-│   ├── admin.js          # 服务器、用户、申请管理接口
+│   ├── index.js          # 入口，路由挂载、公开 API、Redis 缓存
+│   ├── admin.js          # 服务器 CRUD、所有权转移、用户管理、申请审核
 │   ├── auth.js           # 认证接口（Token / OIDC 回调）
-│   ├── db.js             # 数据库初始化
+│   ├── db.js             # 数据库初始化与平滑迁移
 │   ├── oidc-config.js    # OIDC 配置接口
-│   └── request.js        # 用户申请 CRUD 接口
+│   ├── request.js        # 用户申请 CRUD 接口
+│   └── setup.js          # 首次设置向导
 ├── frontend/
+│   ├── src/
+│   │   ├── api/index.ts      # Axios 封装，所有 API 类型定义
+│   │   ├── router/index.ts   # 路由 + 权限守卫
+│   │   ├── composables/      # useAuth, useServers, useTheme
+│   │   ├── views/            # 页面组件
+│   │   └── components/       # 共享组件
 └── package.json
 ```
 
@@ -39,10 +47,12 @@ server-list/
 | 权限等级 | 角色 | 可访问功能 |
 |----------|------|-----------|
 | 0 | 封禁用户 | 可登录但无任何操作权限 |
-| 1 | 普通用户 | 提交服务器操作申请（需管理员审核） |
-| 2 | 管理员 | 直接增删改服务器、审核用户申请 |
-| 3 | 超级管理员 | perm=2 全部功能 + 用户管理（封禁/删除用户）、OIDC 配置 |
+| 1 | 普通用户 | 浏览所有服务器、提交服务器操作申请（需管理员审核） |
+| 2 | 管理员 | 直接管理**自己名下**的服务器（增删改）、审核用户申请、管理 Tag |
+| 3 | 超级管理员 | perm=2 全部功能 + 管理**所有**服务器、转移所有权、用户管理（封禁/删除）、OIDC 配置 |
 
+> **所有权机制**：每个服务器归属于一位用户（`userid` 字段）。perm=2 管理员只能操作自己的服务器；perm=3 超管可操作所有服务器并转移所有权。
+>
 > Token 登录默认授予 perm=3。OIDC 提供商可设置权限覆写，实际权限取配置值与用户数据库权限的最大值。
 
 ### Token 登录
@@ -67,17 +77,22 @@ server-list/
 ## 功能说明
 
 ### 服务器列表
-- 显示所有服务器的图标、名称、简介
-- 支持按名称搜索、分页
-- 右键服务器卡片可删除（perm≥2）或申请编辑（perm=1）
-- 单击卡片进入编辑页
+- 显示所有服务器的图标、名称、描述、类型、版本
+- 支持按名称搜索、按类型/版本筛选
+- 每张卡片底部显示**所有者**信息
+- 登录用户可发起编辑/删除申请（走审核流程）
+- 管理员可对服务器直接编辑/删除（受所有权限制）
 
 ### 服务器管理（perm ≥ 2）
-- 点击"添加服务器"新增（UUID 自动生成）
-- 编辑页可修改除 UUID 外的所有字段
-- IP 字段为可选项
-- 编辑页可一键"创建草稿"将当前数据保存为编辑申请
-- 修改两种tag:类型(type),版本(version)，服务器和申请的相关字段可以**不在**管理员设置的列表内
+- 管理页面仅显示**当前用户拥有**的服务器（超管显示全部）
+- 点击"新建服务器"直接创建（自动归属当前用户）
+- 编辑/删除操作受所有权保护：非超管只能操作自己的服务器
+- 修改两种 tag：类型 (type)、版本 (version)，服务器和申请的相关字段可以**不在**管理员设置的列表内
+
+### 服务器所有权转移（perm ≥ 3）
+- 超管在管理页每张卡片的底部可见 **"转移"** 按钮
+- 点击后弹出对话框，从用户列表中选择新所有者
+- 转移后原所有者失去对该服务器的直接管理权
 
 ### 申请审核工作流
 
@@ -86,6 +101,7 @@ server-list/
 2. 填写信息后保存草稿或直接提交审核
 3. 在"我的申请"页查看申请状态，可撤回/修改/删除草稿；被驳回的申请会显示驳回原因
 4. 待审核申请上限由 `MAX_PENDING_PER_USER` 环境变量控制（默认 3）
+5. 申请通过后，创建的服务器自动归属申请人
 
 **管理员（perm≥2）审核：**
 1. 进入"申请管理"页查看所有待审核申请
@@ -109,10 +125,10 @@ server-list/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/getjson` | 获取服务器列表 |
-| GET | `/api/getjson-fork` | 获取服务器列表 |
+| GET | `/api/getjson` | 获取服务器列表（含所有者名称） |
+| GET | `/api/getjson-fork` | 获取服务器列表（副本） |
 | GET | `/api/oidcConfig/list` | 获取 OIDC 提供商列表（仅公开字段） |
-| GET | `/api/auth/check` | 检查登录状态，返回 `{ perm }` |
+| GET | `/api/auth/check` | 检查登录状态，返回 `{ perm, userId }` |
 | POST | `/api/auth/token` | Token 登录 |
 | POST | `/api/auth/logout` | 退出登录 |
 | GET | `/api/auth/callback` | OIDC 回调 |
@@ -132,20 +148,22 @@ server-list/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/api/admin/create` | 新增服务器 |
-| POST | `/api/admin/edit` | 修改服务器 |
-| POST | `/api/admin/delete` | 删除服务器 |
+| GET | `/api/admin/server/list` | 获取管理用服务器列表（按所有权过滤，含所有者名称） |
+| POST | `/api/admin/create` | 新增服务器（自动设置当前用户为所有者） |
+| POST | `/api/admin/edit` | 修改服务器（仅所有者或超管可操作） |
+| POST | `/api/admin/delete` | 删除服务器（仅所有者或超管可操作） |
 | GET | `/api/admin/request/list` | 获取所有待审核申请（含 `username`、`target_name`） |
 | POST | `/api/admin/request/edit` | 编辑申请数据 |
-| POST | `/api/admin/request/approve` | 审核通过（可选 `force_create` 强制新建） |
+| POST | `/api/admin/request/approve` | 审核通过（创建类自动设申请者为所有者；可选 `force_create` 强制新建） |
 | POST | `/api/admin/request/reject` | 拒绝申请（可附理由，用户在申请列表可见） |
 | POST | `/api/admin/request/submit` | 将草稿提交为待审核（绕过用户数量限制） |
-| POST | `/api/admin/tag/{tag类型}/edit` | 修改某个tag |
+| POST | `/api/admin/tag/{tag类型}/edit` | 修改某个 tag |
 
 ### 超级管理员接口（perm ≥ 3）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
+| POST | `/api/admin/transfer` | 转移服务器所有权 `{ uuid, userid }` |
 | GET | `/api/admin/user/list` | 获取用户列表 |
 | POST | `/api/admin/user/edit` | 修改用户权限（0=封禁） |
 | POST | `/api/admin/user/delete` | 删除用户（删除时删除其所有会话） |
@@ -167,7 +185,7 @@ server-list/
 | `DB_HOST` | `localhost` | 数据库主机 |
 | `DB_PORT` | `5432` | 数据库端口 |
 | `DB_NAME` | `serverlist` | 数据库名称 |
-| `REDIS_URL` | `redis://localhost:6379` | Redis连接地址 | 
+| `REDIS_URL` | `redis://localhost:6379` | Redis 连接地址 |
 
 ## Docker 部署
 

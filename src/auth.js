@@ -165,5 +165,5 @@ export function checkSession(level)
     }
 }
 authRouter.get("/check", checkSession(0), (req, res) => {
-    res.json({ perm: req.sessionPerm });
+    res.json({ perm: req.sessionPerm, userId: req.sessionUserId });
 });

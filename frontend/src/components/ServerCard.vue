@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Server } from '@/api'
-import { Pencil, Trash2, FilePen, FileX2 } from 'lucide-vue-next'
+import { Pencil, Trash2, FilePen, FileX2, UserCog } from 'lucide-vue-next'
 
 const props = defineProps<{
   server: Server
@@ -98,6 +98,12 @@ const fallbackIcon =
         >
           {{ server.IP }}
         </button>
+      </div>
+
+      <!-- 所有者信息 -->
+      <div v-if="server.owner_name || server.userid" class="flex items-center gap-1 text-xs text-muted-foreground border-t pt-2 mt-2">
+        <UserCog class="h-3 w-3" />
+        <span>{{ server.owner_name || server.userid }}</span>
       </div>
     </div>
 

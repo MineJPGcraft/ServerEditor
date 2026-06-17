@@ -96,7 +96,7 @@ async function getjson(req,res)
 {
     try
     {
-        let json=((await db.query("SELECT * FROM server;")).rows);
+        let json=((await db.query("SELECT s.*, u.name as owner_name FROM server s LEFT JOIN users u ON s.userid=u.id;")).rows);
         for(let i = 0; i < json.length; i++)
         {
             json[i].id=i;
