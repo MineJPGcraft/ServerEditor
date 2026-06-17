@@ -1,0 +1,123 @@
+name: Issue and PR Auto Comment
+
+on:
+  issues:
+    types:
+      - opened
+      - closed
+  pull_request_target:
+    types:
+      - opened
+      - closed
+
+permissions:
+  contents: read
+
+jobs:
+  auto-comment:
+    permissions:
+      issues: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      # Issue 开启时的自动回复
+      - name: Auto Comment on Issues Opened
+        if: github.event_name == 'issues' && github.event.action == 'opened'
+        uses: wow-actions/auto-comment@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          issuesOpened: |
+            👋 你好 @{{ author }},感谢提交 Issue!
+            👋 Hello @{{ author }}, thanks for submitting the issue!
+            
+            我们会尽快查看并回复。如果您的问题紧急,请在 Issue 中说明。
+            We will review and respond as soon as possible. If your issue is urgent, please indicate it in the issue.
+
+      # Issue 关闭时的自动回复
+      - name: Auto Comment on Issues Closed
+        if: github.event_name == 'issues' && github.event.action == 'closed'
+        uses: wow-actions/auto-comment@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          issuesClosed: |
+            ✅ @{{ author }}
+            此 Issue 已被关闭,如果您有任何问题,可以继续回复。
+            This issue is closed. If you have any questions, you can comment and reply.
+
+      # 内部 PR 开启时的自动回复
+      - name: Auto Comment on Internal PR Opened
+        if: |
+          github.event_name == 'pull_request_target' && 
+          github.event.action == 'opened' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: wow-actions/auto-comment@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          pullRequestOpened: |
+            🎉 感谢 @{{ author }} 提交 Pull Request!
+            🎉 Thanks @{{ author }} for submitting the Pull Request!
+            
+            我们会尽快审查您的代码。在此期间,请确保:
+            We will review your code as soon as possible. In the meantime, please ensure:
+            - ✅ 所有测试通过 / All tests pass
+            - ✅ 代码符合项目规范 / Code follows project conventions
+            - ✅ 已添加必要的文档 / Necessary documentation is added
+            
+            🤖 我们的 **MCJPG Agent** 将自动对您的代码进行初步审查。
+            🤖 Our **MCJPG Agent** will automatically conduct an initial review of your code.
+            
+            如有代码辅助需求,请在评论区 `@claude` 进行请求。
+            If you need code assistance, please `@claude` in the comments.
+
+      # 外部 PR 开启时的自动回复
+      - name: Auto Comment on External PR Opened
+        if: |
+          github.event_name == 'pull_request_target' && 
+          github.event.action == 'opened' &&
+          github.event.pull_request.head.repo.full_name != github.repository
+        uses: wow-actions/auto-comment@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          pullRequestOpened: |
+            🎉 感谢 @{{ author }} 提交 Pull Request!
+            🎉 Thanks @{{ author }} for submitting the Pull Request!
+            
+            我们会尽快审查您的代码。在此期间,请确保:
+            We will review your code as soon as possible. In the meantime, please ensure:
+            - ✅ 所有测试通过 / All tests pass
+            - ✅ 代码符合项目规范 / Code follows project conventions
+            - ✅ 已添加必要的文档 / Necessary documentation is added
+            
+            ---
+            
+            🤖 **自动代码审查状态**: 等待批准
+            🤖 **Automated Code Review Status**: Pending Approval
+            
+            由于这是一个来自外部仓库的 Pull Request,我们的 Claude AI 代码审查需要维护者手动批准后才能运行。这是为了:
+            Since this is a Pull Request from an external repository, our Claude AI code review requires manual approval from a maintainer before it can run. This is to:
+            - 🛡️ 保护仓库安全 / Protect repository security
+            - 💰 防止 API 配额滥用 / Prevent API quota abuse
+            - ✅ 确保审查质量 / Ensure review quality
+            
+            ⏳ 维护者将尽快审核您的 PR 并批准自动审查,请耐心等待。
+            ⏳ A maintainer will review your PR and approve the automated review shortly. Thank you for your patience!
+            
+            如有代码辅助需求,请在评论区 `@claude` 进行请求。
+            If you need code assistance, please `@claude` in the comments.
+
+      # PR 合并时的自动回复
+      - name: Auto Comment on Pull Request Merged
+        if: |
+          github.event_name == 'pull_request_target' && 
+          github.event.pull_request.merged == true
+        uses: actions-cool/pr-welcome@main
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          comment: |
+            ❤️ 感谢来自 @${{ github.event.pull_request.user.login }} 的 PR ❤️
+            ❤️ Great PR from @${{ github.event.pull_request.user.login }} ❤️
+            
+            如果您也对 **MCJPG** 组织的开发工作感兴趣,欢迎联系并加入我们!
+            If you're also interested in the development work of the **MCJPG** organization, feel free to reach out and join us!
+          emoji: 'hooray'
+          pr-emoji: '+1, heart'
