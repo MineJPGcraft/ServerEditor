@@ -20,8 +20,6 @@ function copyIP(ip: string) {
   navigator.clipboard?.writeText(ip)
 }
 
-// —— XSS 防护：服务端字段（name/link/icon/description）由任意用户写入，前端绑定前必须过滤 ——
-// 仅允许 http(s) 链接，拦截 javascript: / data: 等危险协议
 function safeUrl(value: string | null | undefined): string | null {
   if (!value) return null
   const v = String(value).trim()
@@ -34,7 +32,6 @@ function safeUrl(value: string | null | undefined): string | null {
   }
 }
 
-// 图标额外允许内联 data:image/*（SVG data URI 可挂脚本，故排除）
 function safeIcon(value: string | null | undefined): string {
   if (!value) return ''
   const v = String(value).trim()
@@ -42,7 +39,6 @@ function safeIcon(value: string | null | undefined): string {
   return safeUrl(v) ?? ''
 }
 
-// 过滤后的安全值，用于 :href / :src 绑定
 const safeLink = computed(() => safeUrl(props.server.link))
 const safeIconUrl = computed(() => safeIcon(props.server.icon))
 const fallbackIcon =
@@ -50,14 +46,14 @@ const fallbackIcon =
 </script>
 
 <template>
-  <div class="group relative rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow">
+  <div class="group relative rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow overflow-hidden">
     <div class="p-4">
-      <div class="flex items-center gap-3 mb-3">
+      <div class="flex items-center gap-3 mb-3 min-w-0">
         <img
           :src="safeIconUrl || fallbackIcon"
           :alt="server.name"
           referrerpolicy="no-referrer"
-          class="h-12 w-12 rounded-lg object-cover bg-muted"
+          class="h-12 w-12 rounded-lg object-cover bg-muted shrink-0"
           @error="(e: Event) => { (e.target as HTMLImageElement).src = fallbackIcon }"
         />
         <div class="flex-1 min-w-0">
@@ -73,11 +69,11 @@ const fallbackIcon =
         </div>
       </div>
 
-      <p class="text-sm text-muted-foreground line-clamp-3 mb-3">
+      <p class="text-sm text-muted-foreground line-clamp-3 mb-3 break-words">
         {{ server.description || '暂无描述' }}
       </p>
 
-      <div class="flex items-center gap-2 text-xs text-muted-foreground">
+      <div class="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
         <a
           v-if="safeLink"
           :href="safeLink"
@@ -93,26 +89,23 @@ const fallbackIcon =
         <button
           v-if="server.IP"
           @click="copyIP(server.IP)"
-          class="text-xs text-muted-foreground hover:text-foreground"
+          class="text-xs text-muted-foreground hover:text-foreground shrink-0"
           title="复制 连接地址"
         >
           {{ server.IP }}
         </button>
       </div>
 
-      <!-- 所有者信息 -->
-      <div v-if="server.owner_name || server.userid" class="flex items-center gap-1 text-xs text-muted-foreground border-t pt-2 mt-2">
-        <UserCog class="h-3 w-3" />
-        <span>{{ server.owner_name || server.userid }}</span>
+      <div v-if="server.owner_name || server.userid" class="flex items-center gap-1 text-xs text-muted-foreground border-t pt-2 mt-2 min-w-0">
+        <UserCog class="h-3 w-3 shrink-0" />
+        <span class="truncate">{{ server.owner_name || server.userid }}</span>
       </div>
     </div>
 
-    <!-- Actions -->
     <div
       v-if="isLoggedIn"
       class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 items-center"
     >
-      <!-- 管理员：直接操作（无需审核） -->
       <template v-if="isAdmin">
         <button
           @click="emit('edit', server)"
@@ -129,8 +122,6 @@ const fallbackIcon =
           <Trash2 class="h-3.5 w-3.5" />
         </button>
       </template>
-
-      <!-- 普通用户：申请操作（需审核） -->
       <template v-else>
         <button
           @click="emit('requestEdit', server)"
