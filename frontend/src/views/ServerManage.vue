@@ -181,9 +181,6 @@ async function confirmTransfer() {
             <span class="truncate flex-1">{{ server.link }}</span>
             <span v-if="server.IP" class="text-xs text-muted-foreground shrink-0">{{ server.IP }}</span>
           </div>
-
-          <!-- 所有者信息 -->
-              所有者：{{ server.owner_name || server.userid || '未分配' }}
           <div class="flex items-center justify-between text-xs border-t pt-2 mt-2 min-w-0">
             <span class="text-muted-foreground inline-flex items-center gap-1 min-w-0">
               <UserCog class="h-3 w-3 shrink-0" />
