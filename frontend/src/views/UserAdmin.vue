@@ -161,20 +161,20 @@ function permColor(p: number) {
       <div class="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
     </div>
 
-    <div v-else class="rounded-md border">
-      <table class="w-full">
+    <div v-else class="rounded-md border overflow-x-auto">
+      <table class="w-full min-w-[560px]">
         <thead>
           <tr class="border-b bg-muted/50">
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">ID</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">名称</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">权限</th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground">操作</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">ID</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">名称</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">权限</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="user in users" :key="user.id" class="border-b last:border-0">
             <td class="px-4 py-3 text-xs text-muted-foreground font-mono">{{ user.id }}</td>
-            <td class="px-4 py-3 text-sm font-medium">{{ user.name }}</td>
+            <td class="px-4 py-3 text-sm font-medium whitespace-nowrap">{{ user.name }}</td>
             <td class="px-4 py-3">
               <select
                 :value="user.perm"
@@ -188,7 +188,7 @@ function permColor(p: number) {
                 <option :value="3">超级管理员</option>
               </select>
             </td>
-            <td class="px-4 py-3 text-right">
+            <td class="px-4 py-3 text-right whitespace-nowrap">
               <button
                 @click="openDelete(user)"
                 :disabled="deletingId === user.id || checkingServers"

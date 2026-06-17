@@ -105,25 +105,25 @@ async function confirmReject() {
       <p>暂无待审核申请</p>
     </div>
 
-    <div v-else class="rounded-md border">
-      <table class="w-full">
+    <div v-else class="rounded-md border overflow-x-auto">
+      <table class="w-full min-w-[640px]">
         <thead>
           <tr class="border-b bg-muted/50">
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">服务器名</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">申请人</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">类型</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">提交时间</th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground">操作</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">服务器名</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">申请人</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">类型</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">提交时间</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="req in requests" :key="req.id" class="border-b last:border-0">
             <td class="px-4 py-3"><RequestServerName :req="req" /></td>
-            <td class="px-4 py-3 text-sm text-muted-foreground">{{ req.username || req.userid }}</td>
+            <td class="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{{ req.username || req.userid }}</td>
             <td class="px-4 py-3"><ReqTypeBadge :type="req.req_type" /></td>
-            <td class="px-4 py-3 text-sm text-muted-foreground">{{ new Date(req.created_at).toLocaleDateString('zh-CN') }}</td>
+            <td class="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{{ new Date(req.created_at).toLocaleDateString('zh-CN') }}</td>
             <td class="px-4 py-3">
-              <div class="flex items-center justify-end gap-1">
+              <div class="flex items-center justify-end gap-1 whitespace-nowrap">
                 <button
                   @click="detailRequest = req; showDetailDialog = true"
                   class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-accent"

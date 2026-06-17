@@ -107,25 +107,25 @@ async function confirmDelete() {
       <p>暂无 OIDC 配置</p>
     </div>
 
-    <div v-else class="rounded-md border">
-      <table class="w-full">
+    <div v-else class="rounded-md border overflow-x-auto">
+      <table class="w-full min-w-[640px]">
         <thead>
           <tr class="border-b bg-muted/50">
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">ID</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">名称</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">权限</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Auth URL</th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground">操作</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">ID</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">名称</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">权限</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Auth URL</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="p in providers" :key="p.id" class="border-b last:border-0">
             <td class="px-4 py-3 text-xs font-mono text-muted-foreground">{{ p.id }}</td>
-            <td class="px-4 py-3 text-sm font-medium">{{ p.name }}</td>
-            <td class="px-4 py-3 text-sm">{{ p.perm ?? '默认' }}</td>
+            <td class="px-4 py-3 text-sm font-medium whitespace-nowrap">{{ p.name }}</td>
+            <td class="px-4 py-3 text-sm whitespace-nowrap">{{ p.perm ?? '默认' }}</td>
             <td class="px-4 py-3 text-xs text-muted-foreground truncate max-w-[200px]">{{ p.auth_url }}</td>
             <td class="px-4 py-3">
-              <div class="flex items-center justify-end gap-1">
+              <div class="flex items-center justify-end gap-1 whitespace-nowrap">
                 <button @click="openEdit(p)" class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-accent">
                   <Edit class="h-3 w-3" />
                   编辑

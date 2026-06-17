@@ -79,15 +79,15 @@ async function handleDelete(id: string) {
       <button @click="router.push('/requests/new')" class="text-primary hover:underline mt-2 text-sm">去创建第一个申请</button>
     </div>
 
-    <div v-else class="rounded-md border">
-      <table class="w-full">
+    <div v-else class="rounded-md border overflow-x-auto">
+      <table class="w-full min-w-[640px]">
         <thead>
           <tr class="border-b bg-muted/50">
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">服务器名</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">操作类型</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">状态</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground">创建时间</th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground">操作</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">服务器名</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">操作类型</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">状态</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">创建时间</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -111,9 +111,9 @@ async function handleDelete(id: string) {
                 </span>
               </div>
             </td>
-            <td class="px-4 py-3 text-sm text-muted-foreground">{{ new Date(req.created_at).toLocaleDateString('zh-CN') }}</td>
+            <td class="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{{ new Date(req.created_at).toLocaleDateString('zh-CN') }}</td>
             <td class="px-4 py-3">
-              <div class="flex items-center justify-end gap-1">
+              <div class="flex items-center justify-end gap-1 whitespace-nowrap">
                 <button
                   v-if="req.status === 'draft' || req.status === 'rejected'"
                   @click="router.push(`/requests/${req.id}/edit`)"
