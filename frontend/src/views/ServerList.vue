@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useServers } from '@/composables/useServers'
 import { useAuth } from '@/composables/useAuth'
@@ -16,6 +16,10 @@ const router = useRouter()
 const searchName = ref('')
 const filterType = ref('')
 const filterVersion = ref('')
+
+// 分页
+const currentPage = ref(1)
+const pageSize = 12
 
 // 普通用户：对卡片发起修改申请
 function requestEdit(server: Server) {
@@ -34,6 +38,17 @@ const filteredServers = computed(() => {
     if (filterVersion.value && s.version !== filterVersion.value) return false
     return true
   })
+})
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredServers.value.length / pageSize)))
+
+const paginatedServers = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return filteredServers.value.slice(start, start + pageSize)
+})
+
+watch([searchName, filterType, filterVersion], () => {
+  currentPage.value = 1
 })
 
 // Edit/Delete dialog
@@ -136,14 +151,13 @@ onMounted(() => {
 
     <!-- Empty -->
     <div v-else-if="filteredServers.length === 0" class="text-center py-20 text-muted-foreground">
-      <Server class="h-12 w-12 mx-auto mb-4 opacity-50" />
       <p>暂无服务器</p>
     </div>
 
     <!-- Grid -->
     <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <ServerCard
-        v-for="server in filteredServers"
+        v-for="server in paginatedServers"
         :key="server.uuid"
         :server="server"
         :is-admin="isAdmin"
@@ -153,6 +167,60 @@ onMounted(() => {
         @request-edit="requestEdit"
         @request-delete="requestDelete"
       />
+    </div>
+
+    <!-- Pagination -->
+    <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 pt-2">
+      <button
+        @click="currentPage = 1"
+        :disabled="currentPage === 1"
+        class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+        title="首页"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
+      </button>
+      <button
+        @click="currentPage--"
+        :disabled="currentPage === 1"
+        class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+        title="上一页"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+
+      <template v-for="p in totalPages" :key="p">
+        <button
+          v-if="p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)"
+          @click="currentPage = p"
+          :class="[
+            'inline-flex items-center justify-center h-8 min-w-[2rem] rounded-md text-sm',
+            p === currentPage ? 'bg-primary text-primary-foreground' : 'border hover:bg-accent'
+          ]"
+        >
+          {{ p }}
+        </button>
+        <span v-else-if="p === currentPage - 3 || p === currentPage + 3" class="px-1 text-muted-foreground text-sm">...</span>
+      </template>
+
+      <button
+        @click="currentPage++"
+        :disabled="currentPage === totalPages"
+        class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+        title="下一页"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+      <button
+        @click="currentPage = totalPages"
+        :disabled="currentPage === totalPages"
+        class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+        title="末页"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg>
+      </button>
+      <span class="text-sm text-muted-foreground ml-2">
+        共 {{ filteredServers.length }} 条
+      </span>
     </div>
 
     <!-- Edit Dialog -->

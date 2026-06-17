@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { api, type OidcProviderAdmin } from '@/api'
 import { toast } from 'vue-sonner'
 import OidcForm from '@/components/OidcForm.vue'
@@ -7,6 +7,9 @@ import { Plus, RefreshCw, Edit, Trash2, Key } from 'lucide-vue-next'
 
 const providers = ref<OidcProviderAdmin[]>([])
 const loading = ref(true)
+
+const currentPage = ref(1)
+const pageSize = 12
 
 const showFormDialog = ref(false)
 const showDeleteConfirm = ref(false)
@@ -26,6 +29,13 @@ async function fetchProviders() {
     loading.value = false
   }
 }
+
+const totalPages = computed(() => Math.max(1, Math.ceil(providers.value.length / pageSize)))
+
+const paginatedProviders = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return providers.value.slice(start, start + pageSize)
+})
 
 function openCreate() {
   isCreate.value = true
@@ -107,38 +117,65 @@ async function confirmDelete() {
       <p>暂无 OIDC 配置</p>
     </div>
 
-    <div v-else class="rounded-md border overflow-x-auto">
-      <table class="w-full min-w-[640px]">
-        <thead>
-          <tr class="border-b bg-muted/50">
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">ID</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">名称</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">权限</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Auth URL</th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="p in providers" :key="p.id" class="border-b last:border-0">
-            <td class="px-4 py-3 text-xs font-mono text-muted-foreground">{{ p.id }}</td>
-            <td class="px-4 py-3 text-sm font-medium whitespace-nowrap">{{ p.name }}</td>
-            <td class="px-4 py-3 text-sm whitespace-nowrap">{{ p.perm ?? '默认' }}</td>
-            <td class="px-4 py-3 text-xs text-muted-foreground truncate max-w-[200px]">{{ p.auth_url }}</td>
-            <td class="px-4 py-3">
-              <div class="flex items-center justify-end gap-1 whitespace-nowrap">
-                <button @click="openEdit(p)" class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-accent">
-                  <Edit class="h-3 w-3" />
-                  编辑
-                </button>
-                <button @click="openDelete(p)" class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10">
-                  <Trash2 class="h-3 w-3" />
-                  删除
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else class="space-y-4">
+      <div class="rounded-md border overflow-x-auto">
+        <table class="w-full min-w-[640px]">
+          <thead>
+            <tr class="border-b bg-muted/50">
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">ID</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">名称</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">权限</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Auth URL</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in paginatedProviders" :key="p.id" class="border-b last:border-0">
+              <td class="px-4 py-3 text-xs font-mono text-muted-foreground">{{ p.id }}</td>
+              <td class="px-4 py-3 text-sm font-medium whitespace-nowrap">{{ p.name }}</td>
+              <td class="px-4 py-3 text-sm whitespace-nowrap">{{ p.perm ?? '默认' }}</td>
+              <td class="px-4 py-3 text-xs text-muted-foreground truncate max-w-[200px]">{{ p.auth_url }}</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center justify-end gap-1 whitespace-nowrap">
+                  <button @click="openEdit(p)" class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-accent">
+                    <Edit class="h-3 w-3" />
+                    编辑
+                  </button>
+                  <button @click="openDelete(p)" class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10">
+                    <Trash2 class="h-3 w-3" />
+                    删除
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="flex items-center justify-center gap-2">
+        <button @click="currentPage = 1" :disabled="currentPage === 1" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="首页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
+        </button>
+        <button @click="currentPage--" :disabled="currentPage === 1" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="上一页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <template v-for="p in totalPages" :key="p">
+          <button
+            v-if="p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)"
+            @click="currentPage = p"
+            :class="['inline-flex items-center justify-center h-8 min-w-[2rem] rounded-md text-sm', p === currentPage ? 'bg-primary text-primary-foreground' : 'border hover:bg-accent']"
+          >{{ p }}</button>
+          <span v-else-if="p === currentPage - 3 || p === currentPage + 3" class="px-1 text-muted-foreground text-sm">...</span>
+        </template>
+        <button @click="currentPage++" :disabled="currentPage === totalPages" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="下一页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button @click="currentPage = totalPages" :disabled="currentPage === totalPages" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="末页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg>
+        </button>
+        <span class="text-sm text-muted-foreground ml-2">共 {{ providers.length }} 条</span>
+      </div>
     </div>
 
     <!-- Form dialog -->

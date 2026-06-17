@@ -1,16 +1,22 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { api, type Server, type UserInfo } from '@/api'
 import { useAuth } from '@/composables/useAuth'
 import { toast } from 'vue-sonner'
 import Combobox from '@/components/Combobox.vue'
-import { Plus, RefreshCw, UserCog, ArrowLeftRight } from 'lucide-vue-next'
+import { Plus, RefreshCw, UserCog, ArrowLeftRight, Search } from 'lucide-vue-next'
 
 const { isSuperAdmin } = useAuth()
 
 const servers = ref<Server[]>([])
 const types = ref<string[]>([])
 const versions = ref<string[]>([])
+
+const searchName = ref('')
+const filterType = ref('')
+const filterVersion = ref('')
+const currentPage = ref(1)
+const pageSize = 12
 
 async function fetchAdminServers() {
   try {
@@ -25,6 +31,26 @@ async function fetchAdminServers() {
     toast.error(e.response?.data || '获取服务器列表失败')
   }
 }
+
+const filteredServers = computed(() => {
+  return servers.value.filter(s => {
+    if (searchName.value && !s.name.toLowerCase().includes(searchName.value.toLowerCase())) return false
+    if (filterType.value && s.type !== filterType.value) return false
+    if (filterVersion.value && s.version !== filterVersion.value) return false
+    return true
+  })
+})
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredServers.value.length / pageSize)))
+
+const paginatedServers = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return filteredServers.value.slice(start, start + pageSize)
+})
+
+watch([searchName, filterType, filterVersion], () => {
+  currentPage.value = 1
+})
 
 // ── 表单 ──
 const showFormDialog = ref(false)
@@ -141,13 +167,39 @@ async function confirmTransfer() {
       </div>
     </div>
 
-    <div v-if="servers.length === 0" class="text-center py-20 text-muted-foreground">
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-3">
+      <div class="relative flex-1 min-w-[200px]">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          v-model="searchName"
+          placeholder="搜索服务器名称..."
+          class="flex h-9 w-full rounded-md border bg-transparent pl-9 pr-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+      </div>
+      <select
+        v-model="filterType"
+        class="flex h-9 w-[140px] rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <option value="">全部类型</option>
+        <option v-for="t in types" :key="t" :value="t">{{ t }}</option>
+      </select>
+      <select
+        v-model="filterVersion"
+        class="flex h-9 w-[140px] rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <option value="">全部版本</option>
+        <option v-for="v in versions" :key="v" :value="v">{{ v }}</option>
+      </select>
+    </div>
+
+    <div v-if="filteredServers.length === 0" class="text-center py-20 text-muted-foreground">
       <p>暂无服务器</p>
     </div>
 
     <div v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <div
-        v-for="server in servers"
+        v-for="server in paginatedServers"
         :key="server.uuid"
         class="group relative rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow overflow-hidden"
       >
@@ -216,6 +268,60 @@ async function confirmTransfer() {
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- Pagination -->
+    <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 pt-2">
+      <button
+        @click="currentPage = 1"
+        :disabled="currentPage === 1"
+        class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+        title="首页"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
+      </button>
+      <button
+        @click="currentPage--"
+        :disabled="currentPage === 1"
+        class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+        title="上一页"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+
+      <template v-for="p in totalPages" :key="p">
+        <button
+          v-if="p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)"
+          @click="currentPage = p"
+          :class="[
+            'inline-flex items-center justify-center h-8 min-w-[2rem] rounded-md text-sm',
+            p === currentPage ? 'bg-primary text-primary-foreground' : 'border hover:bg-accent'
+          ]"
+        >
+          {{ p }}
+        </button>
+        <span v-else-if="p === currentPage - 3 || p === currentPage + 3" class="px-1 text-muted-foreground text-sm">...</span>
+      </template>
+
+      <button
+        @click="currentPage++"
+        :disabled="currentPage === totalPages"
+        class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+        title="下一页"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+      <button
+        @click="currentPage = totalPages"
+        :disabled="currentPage === totalPages"
+        class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+        title="末页"
+      >
+        <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg>
+      </button>
+      <span class="text-sm text-muted-foreground ml-2">
+        共 {{ filteredServers.length }} 条
+      </span>
     </div>
 
     <!-- Form dialog -->

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { api, type ServerRequest } from '@/api'
 import { toast } from 'vue-sonner'
 import RequestStatusBadge from '@/components/RequestStatusBadge.vue'
@@ -9,6 +9,9 @@ import { Check, X, Eye, RefreshCw } from 'lucide-vue-next'
 
 const requests = ref<ServerRequest[]>([])
 const loading = ref(true)
+
+const currentPage = ref(1)
+const pageSize = 12
 
 // Approve flow state
 const showForceDialog = ref(false)
@@ -32,6 +35,13 @@ async function fetchRequests() {
     loading.value = false
   }
 }
+
+const totalPages = computed(() => Math.max(1, Math.ceil(requests.value.length / pageSize)))
+
+const paginatedRequests = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return requests.value.slice(start, start + pageSize)
+})
 
 async function handleApprove(req: ServerRequest) {
   try {
@@ -105,51 +115,78 @@ async function confirmReject() {
       <p>暂无待审核申请</p>
     </div>
 
-    <div v-else class="rounded-md border overflow-x-auto">
-      <table class="w-full min-w-[640px]">
-        <thead>
-          <tr class="border-b bg-muted/50">
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">服务器名</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">申请人</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">类型</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">提交时间</th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="req in requests" :key="req.id" class="border-b last:border-0">
-            <td class="px-4 py-3"><RequestServerName :req="req" /></td>
-            <td class="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{{ req.username || req.userid }}</td>
-            <td class="px-4 py-3"><ReqTypeBadge :type="req.req_type" /></td>
-            <td class="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{{ new Date(req.created_at).toLocaleDateString('zh-CN') }}</td>
-            <td class="px-4 py-3">
-              <div class="flex items-center justify-end gap-1 whitespace-nowrap">
-                <button
-                  @click="detailRequest = req; showDetailDialog = true"
-                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-accent"
-                >
-                  <Eye class="h-3 w-3" />
-                  详情
-                </button>
-                <button
-                  @click="handleApprove(req)"
-                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-green-500 hover:bg-green-500/10"
-                >
-                  <Check class="h-3 w-3" />
-                  通过
-                </button>
-                <button
-                  @click="openReject(req.id)"
-                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
-                >
-                  <X class="h-3 w-3" />
-                  驳回
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else class="space-y-4">
+      <div class="rounded-md border overflow-x-auto">
+        <table class="w-full min-w-[640px]">
+          <thead>
+            <tr class="border-b bg-muted/50">
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">服务器名</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">申请人</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">类型</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">提交时间</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="req in paginatedRequests" :key="req.id" class="border-b last:border-0">
+              <td class="px-4 py-3"><RequestServerName :req="req" /></td>
+              <td class="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{{ req.username || req.userid }}</td>
+              <td class="px-4 py-3"><ReqTypeBadge :type="req.req_type" /></td>
+              <td class="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{{ new Date(req.created_at).toLocaleDateString('zh-CN') }}</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center justify-end gap-1 whitespace-nowrap">
+                  <button
+                    @click="detailRequest = req; showDetailDialog = true"
+                    class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-accent"
+                  >
+                    <Eye class="h-3 w-3" />
+                    详情
+                  </button>
+                  <button
+                    @click="handleApprove(req)"
+                    class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-green-500 hover:bg-green-500/10"
+                  >
+                    <Check class="h-3 w-3" />
+                    通过
+                  </button>
+                  <button
+                    @click="openReject(req.id)"
+                    class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                  >
+                    <X class="h-3 w-3" />
+                    驳回
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="flex items-center justify-center gap-2">
+        <button @click="currentPage = 1" :disabled="currentPage === 1" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="首页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
+        </button>
+        <button @click="currentPage--" :disabled="currentPage === 1" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="上一页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <template v-for="p in totalPages" :key="p">
+          <button
+            v-if="p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)"
+            @click="currentPage = p"
+            :class="['inline-flex items-center justify-center h-8 min-w-[2rem] rounded-md text-sm', p === currentPage ? 'bg-primary text-primary-foreground' : 'border hover:bg-accent']"
+          >{{ p }}</button>
+          <span v-else-if="p === currentPage - 3 || p === currentPage + 3" class="px-1 text-muted-foreground text-sm">...</span>
+        </template>
+        <button @click="currentPage++" :disabled="currentPage === totalPages" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="下一页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button @click="currentPage = totalPages" :disabled="currentPage === totalPages" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="末页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg>
+        </button>
+        <span class="text-sm text-muted-foreground ml-2">共 {{ requests.length }} 条</span>
+      </div>
     </div>
 
     <!-- Detail dialog -->

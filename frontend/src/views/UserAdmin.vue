@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { api, type UserInfo, type Server } from '@/api'
 import { toast } from 'vue-sonner'
 import { RefreshCw, Trash2, AlertTriangle } from 'lucide-vue-next'
@@ -8,6 +8,9 @@ const users = ref<UserInfo[]>([])
 const loading = ref(true)
 const savingId = ref<string | null>(null)
 const deletingId = ref<string | null>(null)
+
+const currentPage = ref(1)
+const pageSize = 12
 
 // 简单删除确认
 const showDeleteConfirm = ref(false)
@@ -38,6 +41,13 @@ async function fetchUsers() {
     loading.value = false
   }
 }
+
+const totalPages = computed(() => Math.max(1, Math.ceil(users.value.length / pageSize)))
+
+const paginatedUsers = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return users.value.slice(start, start + pageSize)
+})
 
 async function changePerm(user: UserInfo, perm: number) {
   savingId.value = user.id
@@ -161,46 +171,73 @@ function permColor(p: number) {
       <div class="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
     </div>
 
-    <div v-else class="rounded-md border overflow-x-auto">
-      <table class="w-full min-w-[560px]">
-        <thead>
-          <tr class="border-b bg-muted/50">
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">ID</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">名称</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">权限</th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="user in users" :key="user.id" class="border-b last:border-0">
-            <td class="px-4 py-3 text-xs text-muted-foreground font-mono">{{ user.id }}</td>
-            <td class="px-4 py-3 text-sm font-medium whitespace-nowrap">{{ user.name }}</td>
-            <td class="px-4 py-3">
-              <select
-                :value="user.perm"
-                @change="(e: any) => openPermChange(user, parseInt(e.target.value))"
-                :disabled="savingId === user.id"
-                :class="['flex h-8 w-32 rounded-md border bg-transparent px-2 py-1 text-sm', permColor(user.perm)]"
-              >
-                <option :value="0">已封禁</option>
-                <option :value="1">普通用户</option>
-                <option :value="2">管理员</option>
-                <option :value="3">超级管理员</option>
-              </select>
-            </td>
-            <td class="px-4 py-3 text-right whitespace-nowrap">
-              <button
-                @click="openDelete(user)"
-                :disabled="deletingId === user.id || checkingServers"
-                class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50"
-              >
-                <Trash2 class="h-3 w-3 mr-1" />
-                删除
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else class="space-y-4">
+      <div class="rounded-md border overflow-x-auto">
+        <table class="w-full min-w-[560px]">
+          <thead>
+            <tr class="border-b bg-muted/50">
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">ID</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">名称</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">权限</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="user in paginatedUsers" :key="user.id" class="border-b last:border-0">
+              <td class="px-4 py-3 text-xs text-muted-foreground font-mono">{{ user.id }}</td>
+              <td class="px-4 py-3 text-sm font-medium whitespace-nowrap">{{ user.name }}</td>
+              <td class="px-4 py-3">
+                <select
+                  :value="user.perm"
+                  @change="(e: any) => openPermChange(user, parseInt(e.target.value))"
+                  :disabled="savingId === user.id"
+                  :class="['flex h-8 w-32 rounded-md border bg-transparent px-2 py-1 text-sm', permColor(user.perm)]"
+                >
+                  <option :value="0">已封禁</option>
+                  <option :value="1">普通用户</option>
+                  <option :value="2">管理员</option>
+                  <option :value="3">超级管理员</option>
+                </select>
+              </td>
+              <td class="px-4 py-3 text-right whitespace-nowrap">
+                <button
+                  @click="openDelete(user)"
+                  :disabled="deletingId === user.id || checkingServers"
+                  class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50"
+                >
+                  <Trash2 class="h-3 w-3 mr-1" />
+                  删除
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="flex items-center justify-center gap-2">
+        <button @click="currentPage = 1" :disabled="currentPage === 1" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="首页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
+        </button>
+        <button @click="currentPage--" :disabled="currentPage === 1" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="上一页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <template v-for="p in totalPages" :key="p">
+          <button
+            v-if="p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)"
+            @click="currentPage = p"
+            :class="['inline-flex items-center justify-center h-8 min-w-[2rem] rounded-md text-sm', p === currentPage ? 'bg-primary text-primary-foreground' : 'border hover:bg-accent']"
+          >{{ p }}</button>
+          <span v-else-if="p === currentPage - 3 || p === currentPage + 3" class="px-1 text-muted-foreground text-sm">...</span>
+        </template>
+        <button @click="currentPage++" :disabled="currentPage === totalPages" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="下一页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button @click="currentPage = totalPages" :disabled="currentPage === totalPages" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-sm hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed" title="末页">
+          <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg>
+        </button>
+        <span class="text-sm text-muted-foreground ml-2">共 {{ users.length }} 条</span>
+      </div>
     </div>
 
     <!-- 简单删除确认（无服务器） -->
