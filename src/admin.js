@@ -65,10 +65,6 @@ admin_router.post("/edit", async(req, res) => {
         {
             return res.status(400).send('Missing required fields');
         }
-        // 所有权检查：非超管只能编辑自己的服务器
-        const owner=await db.query("SELECT userid FROM server WHERE uuid=$1;",[req.body.uuid]);
-        if(owner.rows.length<=0) return res.status(404).send("Server not found");
-        if(req.sessionPerm<3 && owner.rows[0].userid!==req.sessionUserId) return res.status(403).send("Permission denied: not the owner");
         const result=await db.query(`UPDATE server SET
             name=$1,
             type=$2,
@@ -119,10 +115,6 @@ admin_router.post("/delete", async(req, res) => {
         {
             return res.status(400).send('Missing uuid');
         }
-        // 所有权检查：非超管只能删除自己的服务器
-        const owner=await db.query("SELECT userid FROM server WHERE uuid=$1;",[req.body.uuid]);
-        if(owner.rows.length<=0) return res.status(404).send("Server not found");
-        if(req.sessionPerm<3 && owner.rows[0].userid!==req.sessionUserId) return res.status(403).send("Permission denied: not the owner");
         const result=await db.query("DELETE FROM server WHERE uuid=$1;",[req.body.uuid]);
         if(result.rowCount<=0)
         {
@@ -138,15 +130,10 @@ admin_router.post("/delete", async(req, res) => {
     }
 });
 
-// 管理用服务器列表（按所有权过滤）
+// 管理用服务器列表（管理员看全部，普通用户无权限访问此路由）
 admin_router.get("/server/list", async(req, res) => {
     try {
-        let result;
-        if(req.sessionPerm>=3) {
-            result=await db.query("SELECT s.*, u.name as owner_name FROM server s LEFT JOIN users u ON s.userid=u.id;");
-        } else {
-            result=await db.query("SELECT s.*, u.name as owner_name FROM server s LEFT JOIN users u ON s.userid=u.id WHERE s.userid=$1;",[req.sessionUserId]);
-        }
+        const result=await db.query("SELECT s.*, u.name as owner_name FROM server s LEFT JOIN users u ON s.userid=u.id;");
         res.json(result.rows);
     } catch(err) {
         res.status(500).send(err.message);

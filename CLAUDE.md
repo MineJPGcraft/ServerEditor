@@ -29,7 +29,7 @@ ServerEditor/
 │   ├── index.js              # 入口：Express app、路由挂载、静态文件、Redis 缓存逻辑
 │   ├── db.js                 # PostgreSQL 连接池、Redis 客户端、数据库初始化 (CREATE TABLE IF NOT EXISTS + ALTER 平滑迁移)
 │   ├── auth.js               # 认证：Token 登录、OIDC 回调、登出、checkSession 中间件
-│   ├── admin.js              # 管理员路由：服务器 CRUD（含所有权检查）、server/list、transfer、用户管理、请求审核 (approve/reject)、Tag 编辑
+│   ├── admin.js              # 管理员路由：服务器 CRUD（无需审核）、server/list、transfer、用户管理、请求审核 (approve/reject)、Tag 编辑
 │   ├── request.js            # 用户申请路由：创建/编辑/提交/撤回/删除申请
 │   ├── oidc-config.js        # OIDC 提供商配置 CRUD
 │   ├── setup.js              # 首次设置向导 (无超管时开放 /setup)
@@ -45,7 +45,7 @@ ServerEditor/
 │   │   │   └── useTheme.ts    # 暗色/亮色主题切换
 │   │   ├── layouts/SidebarLayout.vue  # 侧边栏布局 (导航/用户信息/折叠)
 │   │   ├── views/            # 页面组件
-│   │   │   ├── ServerList.vue     # 服务器列表 (搜索/筛选/右键菜单)
+│   │   │   ├── ServerList.vue     # 服务器列表 (搜索/筛选/右键菜单；perm≥2 可直接编辑)
 │   │   │   ├── ServerManage.vue   # 服务器管理 (CRUD 表单 + 所有者展示 + 转移 UI)
 │   │   │   ├── RequestList.vue    # 我的申请列表
 │   │   │   ├── RequestForm.vue    # 申请表单 (新建/编辑)
@@ -79,9 +79,9 @@ ServerEditor/
 | 等级 | 角色 | 能力 |
 |------|------|------|
 | 0 | 封禁用户 | 可登录，无任何操作权限 |
-| 1 | 普通用户 | 浏览服务器、提交编辑/创建/删除申请 |
-| 2 | 管理员 | 直接增删改**自己名下**的服务器、审核申请、管理 Tag |
-| 3 | 超级管理员 | 管理员全部功能 + 管理**所有**服务器、转移所有权、用户管理 (封禁/删除)、OIDC 配置管理 |
+| 1 | 普通用户 | 浏览服务器、提交编辑/创建/删除申请（需审核） |
+| 2 | 管理员 | 直接增删改**所有**服务器（无需审核）、审核申请、管理 Tag |
+| 3 | 超级管理员 | 管理员全部功能 + 转移所有权、用户管理 (封禁/删除)、OIDC 配置管理 |
 
 - Token 登录始终获得 `perm=3` (用户 ID: `"token"`)
 - OIDC 登录权限: `max(oidc_provider.perm, user.perm)` 默认为 1
@@ -91,9 +91,10 @@ ServerEditor/
 
 ### 核心原则
 
-- 每个 `server` 记录的 `userid` 字段标识其所有者
-- **perm < 3** 的管理员只能查看/编辑/删除自己的服务器
-- **perm ≥ 3** 的超管可以操作所有服务器，并可转移所有权
+- 每个 `server` 记录的 `userid` 字段标识其所有者（用于展示和追溯）
+- **perm=1**：只能通过审核工作流操作服务器
+- **perm≥2**：可直接增删改**任意**服务器，无需审核，无所有权限制
+- **perm≥3**：额外拥有转移所有权 (`POST /api/admin/transfer`) 能力
 
 ### 所有权设置时机
 
@@ -105,12 +106,13 @@ ServerEditor/
 
 ### 关键 API
 
-| 接口 | 权限 | 所有权检查 |
-|------|------|-----------|
-| `POST /api/admin/edit` | perm≥2 | `server.userid === sessionUserId` 或 `perm≥3` |
-| `POST /api/admin/delete` | perm≥2 | `server.userid === sessionUserId` 或 `perm≥3` |
-| `GET /api/admin/server/list` | perm≥2 | perm<3 时自动过滤 `WHERE userid=sessionUserId`；perm≥3 返回全部 |
-| `POST /api/admin/transfer` | perm≥3 | 无限制，`{ uuid, userid }` 直接更新 |
+| 接口 | 权限 | 说明 |
+|------|------|------|
+| `POST /api/admin/create` | perm≥2 | 自动设置 `userid=当前用户` |
+| `POST /api/admin/edit` | perm≥2 | 直接修改任意服务器，无需审核 |
+| `POST /api/admin/delete` | perm≥2 | 直接删除任意服务器，无需审核 |
+| `GET /api/admin/server/list` | perm≥2 | 返回全部服务器（含 `owner_name`） |
+| `POST /api/admin/transfer` | perm≥3 | 转移所有权 `{ uuid, userid }` |
 
 ### 前端展示
 
@@ -133,7 +135,7 @@ ServerEditor/
 ## 审核工作流
 
 ```
-普通用户:
+普通用户 (perm=1):
   POST /api/request/create  → draft
   POST /api/request/edit    → 修改 draft 或 rejected
   POST /api/request/submit  → pending (每个用户最多 MAX_PENDING_PER_USER 个
@@ -141,7 +143,7 @@ ServerEditor/
   POST /api/request/cancel   → 退回 draft
   POST /api/request/delete   → 删除 draft
 
-管理员:
+管理员 (perm≥2):
   GET  /api/admin/request/list       → 查看所有 pending
   POST /api/admin/request/edit       → 编辑申请内容
   POST /api/admin/request/approve    → 审核通过 (edit 类目标不存在时
@@ -150,6 +152,8 @@ ServerEditor/
   POST /api/admin/request/reject     → 拒绝 (附 reject_reason)
   POST /api/admin/request/submit     → 绕过数量限制直接提交
 ```
+
+> **注意**：perm≥2 管理员可直接操作任意服务器（`/api/admin/edit`、`/api/admin/delete`），无需走审核流程。
 
 ## 会话认证全流程
 
