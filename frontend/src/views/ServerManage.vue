@@ -3,7 +3,6 @@ import { ref, onMounted } from 'vue'
 import { api, type Server, type UserInfo } from '@/api'
 import { useAuth } from '@/composables/useAuth'
 import { toast } from 'vue-sonner'
-import ServerCard from '@/components/ServerCard.vue'
 import Combobox from '@/components/Combobox.vue'
 import { Plus, RefreshCw, UserCog, ArrowLeftRight } from 'lucide-vue-next'
 
@@ -150,16 +149,15 @@ async function confirmTransfer() {
       <div
         v-for="server in servers"
         :key="server.uuid"
-        class="group relative rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow"
+        class="group relative rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow overflow-hidden"
       >
-        <!-- ServerCard 内联（含所有者信息 & 转移按钮） -->
         <div class="p-4">
-          <div class="flex items-center gap-3 mb-3">
+          <div class="flex items-center gap-3 mb-3 min-w-0">
             <img
               :src="server.icon || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23666%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%22 y=%2260%22 text-anchor=%22middle%22 fill=%22%23fff%22 font-size=%2240%22%3E?%3C/text%3E%3C/svg%3E'"
               :alt="server.name"
               referrerpolicy="no-referrer"
-              class="h-12 w-12 rounded-lg object-cover bg-muted"
+              class="h-12 w-12 rounded-lg object-cover bg-muted shrink-0"
               @error="(e: Event) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23666%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%22 y=%2260%22 text-anchor=%22middle%22 fill=%22%23fff%22 font-size=%2240%22%3E?%3C/text%3E%3C/svg%3E' }"
             />
             <div class="flex-1 min-w-0">
@@ -175,25 +173,26 @@ async function confirmTransfer() {
             </div>
           </div>
 
-          <p class="text-sm text-muted-foreground line-clamp-3 mb-3">
+          <p class="text-sm text-muted-foreground line-clamp-3 mb-3 break-words">
             {{ server.description || '暂无描述' }}
           </p>
 
-          <div class="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+          <div class="flex items-center gap-2 text-xs text-muted-foreground mb-2 min-w-0">
             <span class="truncate flex-1">{{ server.link }}</span>
-            <span v-if="server.IP" class="text-xs text-muted-foreground">{{ server.IP }}</span>
+            <span v-if="server.IP" class="text-xs text-muted-foreground shrink-0">{{ server.IP }}</span>
           </div>
 
           <!-- 所有者信息 -->
-          <div class="flex items-center justify-between text-xs border-t pt-2 mt-2">
-            <span class="text-muted-foreground inline-flex items-center gap-1">
-              <UserCog class="h-3 w-3" />
               所有者：{{ server.owner_name || server.userid || '未分配' }}
+          <div class="flex items-center justify-between text-xs border-t pt-2 mt-2 min-w-0">
+            <span class="text-muted-foreground inline-flex items-center gap-1 min-w-0">
+              <UserCog class="h-3 w-3 shrink-0" />
+              <span class="truncate">所有者：{{ server.owner_name || server.userid || '未分配' }}</span>
             </span>
             <button
               v-if="isSuperAdmin"
               @click="openTransfer(server)"
-              class="inline-flex items-center gap-1 text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
+              class="inline-flex items-center gap-1 text-primary hover:underline opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2"
               title="转移所有权"
             >
               <ArrowLeftRight class="h-3 w-3" />
