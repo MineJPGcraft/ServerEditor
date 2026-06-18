@@ -83,6 +83,16 @@ server-list/
 - **普通用户**：卡片显示"申请修改/申请删除"按钮（走审核流程）
 - **管理员**：卡片显示"直接编辑/直接删除"按钮（无需审核，即时生效）
 
+### 服务器图片（picture）
+- 每个服务器可关联一组**图片链接**（`picture` 字段，jsonb 数组，可选）
+- 管理端表单（ServerManage）和用户申请表（RequestForm）均提供图片编辑器：
+  - 输入链接后回车或点击"添加"按钮加入列表
+  - 点击图片项右侧的 × 可删除
+  - **管理端表单支持拖拽排序**（参考 TagManage 的 Pointer Events 实现，鼠标/触摸通用，6px 阈值防误触）
+- 服务器管理页卡片底部展示前 4 张缩略图（超出显示 +N）
+- 审核详情弹窗以缩略图网格形式展示申请中的图片
+- 图片字段为可选，不填写不影响服务器创建/编辑
+
 ### 服务器管理（perm ≥ 2）
 - 管理页面显示**全部**服务器，支持直接增删改
 - 点击"新建服务器"直接创建（自动归属当前用户）
@@ -126,7 +136,7 @@ server-list/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/getjson` | 获取服务器列表（含所有者名称） |
+| GET | `/api/getjson` | 获取服务器列表（含所有者名称、picture 图片数组） |
 | GET | `/api/getjson-fork` | 获取服务器列表（副本） |
 | GET | `/api/oidcConfig/list` | 获取 OIDC 提供商列表（仅公开字段） |
 | GET | `/api/auth/check` | 检查登录状态，返回 `{ perm, userId }` |
@@ -150,12 +160,12 @@ server-list/
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/admin/server/list` | 获取管理用服务器列表（全部服务器，含所有者名称） |
-| POST | `/api/admin/create` | 新增服务器（自动设置当前用户为所有者） |
-| POST | `/api/admin/edit` | 直接修改任意服务器（无需审核） |
+| POST | `/api/admin/create` | 新增服务器（自动设置当前用户为所有者，支持 `picture` 数组） |
+| POST | `/api/admin/edit` | 直接修改任意服务器（无需审核，支持 `picture` 数组） |
 | POST | `/api/admin/delete` | 直接删除任意服务器（无需审核） |
 | GET | `/api/admin/request/list` | 获取所有待审核申请（含 `username`、`target_name`） |
 | POST | `/api/admin/request/edit` | 编辑申请数据 |
-| POST | `/api/admin/request/approve` | 审核通过（创建类自动设申请者为所有者；可选 `force_create` 强制新建） |
+| POST | `/api/admin/request/approve` | 审核通过（创建类自动设申请者为所有者；可选 `force_create` 强制新建；同步写入 `picture`） |
 | POST | `/api/admin/request/reject` | 拒绝申请（可附理由，用户在申请列表可见） |
 | POST | `/api/admin/request/submit` | 将草稿提交为待审核（绕过用户数量限制） |
 | POST | `/api/admin/tag/{tag类型}/edit` | 修改某个 tag |
@@ -200,7 +210,7 @@ docker run -d \
   -e DB_PASSWORD=password \
   -e DB_NAME=serverlist \
   --link postgres-db:postgres-db \
-  ghcr.io/minejpgcraft/server-list:latest
+  ghcr.io/minejpgcraft/servereditor:latest
 ```
 
 ## 交互式用户配置

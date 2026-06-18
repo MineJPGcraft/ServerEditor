@@ -7,7 +7,7 @@ import { api, type Server } from '@/api'
 import ServerCard from '@/components/ServerCard.vue'
 import Combobox from '@/components/Combobox.vue'
 import { toast } from 'vue-sonner'
-import { Search, RefreshCw } from 'lucide-vue-next'
+import { Search, RefreshCw, Plus, X } from 'lucide-vue-next'
 
 const { servers, types, versions, loading, fetchServers } = useServers()
 const { isAdmin, isLoggedIn } = useAuth()
@@ -56,6 +56,20 @@ const showEditDialog = ref(false)
 const showDeleteConfirm = ref(false)
 const editingServer = ref<Server | null>(null)
 const editForm = ref({ name: '', type: '', version: '', icon: '', description: '', link: '', IP: '' })
+const pictureList = ref<string[]>([])
+const newPicture = ref('')
+
+function addPicture() {
+  const v = newPicture.value.trim()
+  if (!v) return
+  if (pictureList.value.includes(v)) { toast.error('图片链接已存在'); return }
+  pictureList.value.push(v)
+  newPicture.value = ''
+}
+
+function removePicture(index: number) {
+  pictureList.value.splice(index, 1)
+}
 
 function openEdit(server: Server) {
   editingServer.value = server
@@ -68,13 +82,15 @@ function openEdit(server: Server) {
     link: server.link,
     IP: server.IP || '',
   }
+  pictureList.value = Array.isArray(server.picture) ? [...server.picture] : []
+  newPicture.value = ''
   showEditDialog.value = true
 }
 
 async function saveEdit() {
   if (!editingServer.value) return
   try {
-    await api.servers.edit({ ...editForm.value, uuid: editingServer.value.uuid, IP: editForm.value.IP || null })
+    await api.servers.edit({ ...editForm.value, uuid: editingServer.value.uuid, IP: editForm.value.IP || null, picture: pictureList.value })
     toast.success('服务器已更新')
     showEditDialog.value = false
     fetchServers()
@@ -225,7 +241,7 @@ onMounted(() => {
 
     <!-- Edit Dialog -->
     <div v-if="showEditDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showEditDialog = false">
-      <div class="w-full max-w-lg rounded-lg border bg-card p-6 shadow-lg mx-4">
+      <div class="w-full max-w-lg rounded-lg border bg-card p-6 shadow-lg mx-4 max-h-[90vh] overflow-y-auto">
         <h2 class="text-lg font-semibold mb-4">编辑服务器</h2>
         <form @submit.prevent="saveEdit">
         <div class="space-y-3">
@@ -258,6 +274,40 @@ onMounted(() => {
           <div class="space-y-1.5">
             <label class="text-sm font-medium">IP (可选)</label>
             <input v-model="editForm.IP" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+          </div>
+          <!-- 图片列表 -->
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">宣传图片 (可选)</label>
+            <div class="flex flex-wrap gap-2 min-h-[40px]">
+              <div
+                v-for="(pic, i) in pictureList"
+                :key="i"
+                class="group inline-flex items-center gap-1.5 rounded-md bg-secondary pl-1.5 pr-2 py-1 text-sm"
+              >
+                <img
+                  :src="pic"
+                  referrerpolicy="no-referrer"
+                  class="h-5 w-5 rounded object-cover bg-muted shrink-0"
+                  @error="(e: Event) => { (e.target as HTMLImageElement).style.display='none' }"
+                />
+                <span class="max-w-[120px] truncate text-secondary-foreground">{{ pic }}</span>
+                <button @click="removePicture(i)" class="hover:text-destructive shrink-0">
+                  <X class="h-3 w-3" />
+                </button>
+              </div>
+              <span v-if="pictureList.length === 0" class="text-sm text-muted-foreground">暂无图片</span>
+            </div>
+            <div class="flex gap-2 mt-1.5">
+              <input
+                v-model="newPicture"
+                @keyup.enter="addPicture"
+                placeholder="输入图片链接..."
+                class="flex h-9 flex-1 rounded-md border bg-transparent px-3 py-1 text-sm"
+              />
+              <button type="button" @click="addPicture" class="inline-flex items-center gap-1 rounded-md border px-3 py-1 text-sm hover:bg-accent">
+                <Plus class="h-4 w-4" /> 添加
+              </button>
+            </div>
           </div>
         </div>
         <div class="flex justify-end gap-2 mt-6">

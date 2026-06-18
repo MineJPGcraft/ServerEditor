@@ -19,7 +19,9 @@ export async function dbinit()
     icon text NOT NULL,
     description text NOT NULL,
     link text NOT NULL,
-    IP text
+    IP text,
+    userid text,
+    picture jsonb DEFAULT '[]'::jsonb
 );`);
     await db.query(`CREATE TABLE IF NOT EXISTS oidc (
     id text NOT NULL PRIMARY KEY,
@@ -49,8 +51,9 @@ export async function dbinit()
     updated_at timestamptz NOT NULL DEFAULT now(),
     reject_reason text
 );`);
-    // 平滑迁移：为已有 server 表添加 userid 列
+    // 平滑迁移：为旧版 server 表补充后续新增的列，致敬Lynlan忘记创建列
     await db.query(`ALTER TABLE server ADD COLUMN IF NOT EXISTS userid text;`);
+    await db.query(`ALTER TABLE server ADD COLUMN IF NOT EXISTS picture jsonb DEFAULT '[]'::jsonb;`);
     await db.query(`create table if not exists tags (
     name text not null PRIMARY KEY,
     tag text NOT NULL

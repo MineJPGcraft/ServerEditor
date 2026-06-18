@@ -196,9 +196,22 @@ async function confirmReject() {
         <div v-if="detailRequest" class="space-y-2 text-sm">
           <div><span class="text-muted-foreground">类型:</span> {{ detailRequest.req_type }}</div>
           <div><span class="text-muted-foreground">目标:</span> {{ detailRequest.target_uuid || '新建' }}</div>
-          <div v-for="(v, k) in detailRequest.data" :key="k" class="flex gap-2">
+          <div v-for="(v, k) in detailRequest.data" v-show="k !== 'picture'" :key="k" class="flex gap-2">
             <span class="text-muted-foreground shrink-0">{{ k }}:</span>
             <span class="break-all">{{ v }}</span>
+          </div>
+          <div v-if="Array.isArray(detailRequest.data.picture) && detailRequest.data.picture.length > 0" class="space-y-1">
+            <span class="text-muted-foreground text-sm">宣传图片:</span>
+            <div class="flex flex-wrap gap-1">
+              <img
+                v-for="(pic, idx) in detailRequest.data.picture"
+                :key="idx"
+                :src="pic"
+                referrerpolicy="no-referrer"
+                class="h-12 w-12 rounded object-cover bg-muted"
+                @error="(e: Event) => { (e.target as HTMLImageElement).style.display='none' }"
+              />
+            </div>
           </div>
         </div>
         <div class="flex justify-end mt-6">

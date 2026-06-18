@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue'
 import { api, type Server, type UserInfo } from '@/api'
 import { useAuth } from '@/composables/useAuth'
 import { toast } from 'vue-sonner'
 import Combobox from '@/components/Combobox.vue'
-import { Plus, RefreshCw, UserCog, ArrowLeftRight, Search } from 'lucide-vue-next'
+import { Plus, RefreshCw, UserCog, ArrowLeftRight, Search, GripVertical, X, Image } from 'lucide-vue-next'
 
 const { isSuperAdmin } = useAuth()
 
@@ -17,6 +17,73 @@ const filterType = ref('')
 const filterVersion = ref('')
 const currentPage = ref(1)
 const pageSize = 12
+
+// ── 图片拖拽状态 ──
+const drag = ref<{
+  index: number
+  startX: number
+  startY: number
+  pointerId: number
+  started: boolean
+} | null>(null)
+const dragOverIndex = ref<number | null>(null)
+const ghost = ref<{ text: string; x: number; y: number } | null>(null)
+const DRAG_THRESHOLD = 6
+
+function getPictures() { return pictureList.value }
+function onPointerDown(index: number, e: PointerEvent) {
+  if (e.button !== undefined && e.button !== 0) return
+  const pics = getPictures()
+  drag.value = { index, startX: e.clientX, startY: e.clientY, pointerId: e.pointerId, started: false }
+  ghost.value = { text: pics[index], x: e.clientX, y: e.clientY }
+  window.addEventListener('pointermove', onPointerMove, { passive: false })
+  window.addEventListener('pointerup', onPointerUp)
+  window.addEventListener('pointercancel', onPointerUp)
+}
+function onPointerMove(e: PointerEvent) {
+  if (!drag.value || e.pointerId !== drag.value.pointerId) return
+  const dx = e.clientX - drag.value.startX, dy = e.clientY - drag.value.startY
+  if (!drag.value.started) { if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return; drag.value.started = true }
+  e.preventDefault()
+  if (ghost.value) { ghost.value.x = e.clientX; ghost.value.y = e.clientY }
+  const el = document.elementFromPoint(e.clientX, e.clientY)
+  const picEl = el?.closest('[data-pic-index]') as HTMLElement | null
+  if (!picEl) { dragOverIndex.value = null; return }
+  const overIndex = Number(picEl.dataset.picIndex)
+  if (Number.isNaN(overIndex)) { dragOverIndex.value = null; return }
+  dragOverIndex.value = overIndex
+  if (overIndex !== drag.value.index) {
+    const arr = [...pictureList.value]
+    const [moved] = arr.splice(drag.value.index, 1)
+    arr.splice(overIndex, 0, moved)
+    pictureList.value = arr
+    drag.value.index = overIndex
+  }
+}
+function onPointerUp(e: PointerEvent) {
+  if (!drag.value || e.pointerId !== drag.value.pointerId) return
+  endDrag()
+}
+function endDrag() {
+  drag.value = null; dragOverIndex.value = null; ghost.value = null
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
+}
+onBeforeUnmount(() => { endDrag() })
+
+function safeUrl(v: string | null | undefined): string | null {
+  if (!v) return null
+  const s = String(v).trim()
+  try { const u = new URL(s); if (u.protocol === 'http:' || u.protocol === 'https:') return s; return null } catch { return null }
+}
+function safeIcon(v: string | null | undefined): string {
+  if (!v) return ''
+  const s = String(v).trim()
+  if (/^data:image\//i.test(s) && !/^data:image\/svg/i.test(s)) return s
+  return safeUrl(s) ?? ''
+}
+const fallbackIcon = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23666%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%22 y=%2260%22 text-anchor=%22middle%22 fill=%22%23fff%22 font-size=%2240%22%3E?%3C/text%3E%3C/svg%3E"
 
 async function fetchAdminServers() {
   try {
@@ -59,15 +126,31 @@ const editingServer = ref<Server | null>(null)
 const isCreate = ref(false)
 
 const form = ref({ uuid: '', name: '', type: '', version: '', icon: '', description: '', link: '', IP: '' })
+const pictureList = ref<string[]>([])
+const newPicture = ref('')
 
 onMounted(() => {
   fetchAdminServers()
 })
 
+function addPicture() {
+  const v = newPicture.value.trim()
+  if (!v) return
+  if (pictureList.value.includes(v)) { toast.error('图片链接已存在'); return }
+  pictureList.value.push(v)
+  newPicture.value = ''
+}
+
+function removePicture(index: number) {
+  pictureList.value.splice(index, 1)
+}
+
 function openCreate() {
   isCreate.value = true
   editingServer.value = null
   form.value = { uuid: '', name: '', type: '', version: '', icon: '', description: '', link: '', IP: '' }
+  pictureList.value = []
+  newPicture.value = ''
   showFormDialog.value = true
 }
 
@@ -84,12 +167,14 @@ function openEdit(server: Server) {
     link: server.link,
     IP: server.IP || '',
   }
+  pictureList.value = Array.isArray(server.picture) ? [...server.picture] : []
+  newPicture.value = ''
   showFormDialog.value = true
 }
 
 async function saveForm() {
   try {
-    const data = { ...form.value, IP: form.value.IP || null }
+    const data = { ...form.value, IP: form.value.IP || null, picture: pictureList.value }
     if (isCreate.value) {
       await api.servers.create(data)
       toast.success('服务器已创建')
@@ -206,11 +291,11 @@ async function confirmTransfer() {
         <div class="p-4">
           <div class="flex items-center gap-3 mb-3 min-w-0">
             <img
-              :src="server.icon || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23666%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%22 y=%2260%22 text-anchor=%22middle%22 fill=%22%23fff%22 font-size=%2240%22%3E?%3C/text%3E%3C/svg%3E'"
+              :src="safeIcon(server.icon) || fallbackIcon"
               :alt="server.name"
               referrerpolicy="no-referrer"
               class="h-12 w-12 rounded-lg object-cover bg-muted shrink-0"
-              @error="(e: Event) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23666%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%22 y=%2260%22 text-anchor=%22middle%22 fill=%22%23fff%22 font-size=%2240%22%3E?%3C/text%3E%3C/svg%3E' }"
+              @error="(e: Event) => { (e.target as HTMLImageElement).src = fallbackIcon }"
             />
             <div class="flex-1 min-w-0">
               <h3 class="font-semibold text-sm truncate">{{ server.name }}</h3>
@@ -228,6 +313,19 @@ async function confirmTransfer() {
           <p class="text-sm text-muted-foreground line-clamp-3 mb-3 break-words">
             {{ server.description || '暂无描述' }}
           </p>
+
+          <!-- 图片缩略图横条 -->
+          <div v-if="server.picture && server.picture.length > 0" class="flex gap-1 mb-3 overflow-x-auto">
+            <img
+              v-for="(pic, idx) in server.picture.slice(0, 4)"
+              :key="idx"
+              :src="pic"
+              referrerpolicy="no-referrer"
+              class="h-10 w-10 rounded object-cover bg-muted shrink-0"
+              @error="(e: Event) => { (e.target as HTMLImageElement).style.display='none' }"
+            />
+            <span v-if="server.picture.length > 4" class="text-xs text-muted-foreground self-center shrink-0">+{{ server.picture.length - 4 }}</span>
+          </div>
 
           <div class="flex items-center gap-2 text-xs text-muted-foreground mb-2 min-w-0">
             <span class="truncate flex-1">{{ server.link }}</span>
@@ -360,6 +458,47 @@ async function confirmTransfer() {
             <label class="text-sm font-medium">连接地址(可选)</label>
             <input v-model="form.IP" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
           </div>
+          <!-- 图片列表 -->
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">宣传图片 (可选, 拖拽排序)</label>
+            <div class="flex flex-wrap gap-2 min-h-[40px]">
+              <div
+                v-for="(pic, i) in pictureList"
+                :key="i"
+                :data-pic-index="i"
+                @pointerdown="onPointerDown(i, $event)"
+                :class="[
+                  'group inline-flex items-center gap-1.5 rounded-md bg-secondary pl-1.5 pr-2 py-1 text-sm transition-all touch-none select-none',
+                  drag?.started && drag.index === i ? 'opacity-40' : '',
+                  dragOverIndex === i ? 'ring-2 ring-primary' : ''
+                ]"
+              >
+                <GripVertical class="h-3.5 w-3.5 text-muted-foreground opacity-50 group-hover:opacity-100 cursor-grab active:cursor-grabbing shrink-0" />
+                <img
+                  :src="pic"
+                  referrerpolicy="no-referrer"
+                  class="h-5 w-5 rounded object-cover bg-muted shrink-0"
+                  @error="(e: Event) => { (e.target as HTMLImageElement).style.display='none' }"
+                />
+                <span class="max-w-[160px] truncate text-secondary-foreground">{{ pic }}</span>
+                <button @click="removePicture(i)" @pointerdown.stop class="hover:text-destructive shrink-0">
+                  <X class="h-3 w-3" />
+                </button>
+              </div>
+              <span v-if="pictureList.length === 0" class="text-sm text-muted-foreground">暂无图片</span>
+            </div>
+            <div class="flex gap-2 mt-1.5">
+              <input
+                v-model="newPicture"
+                @keyup.enter="addPicture"
+                placeholder="输入图片链接..."
+                class="flex h-9 flex-1 rounded-md border bg-transparent px-3 py-1 text-sm"
+              />
+              <button type="button" @click="addPicture" class="inline-flex items-center gap-1 rounded-md border px-3 py-1 text-sm hover:bg-accent">
+                <Plus class="h-4 w-4" /> 添加
+              </button>
+            </div>
+          </div>
         </div>
         <div class="flex justify-end gap-2 mt-6">
           <button type="button" @click="showFormDialog = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
@@ -409,5 +548,16 @@ async function confirmTransfer() {
         </div>
       </div>
     </div>
+
+    <!-- 拖拽浮层 -->
+    <Teleport to="body">
+      <div
+        v-if="ghost && drag?.started"
+        class="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-md bg-primary px-3 py-1 text-sm text-primary-foreground shadow-lg opacity-90 max-w-[200px] truncate"
+        :style="{ left: ghost.x + 'px', top: ghost.y + 'px' }"
+      >
+        {{ ghost.text }}
+      </div>
+    </Teleport>
   </div>
 </template>
