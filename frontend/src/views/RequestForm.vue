@@ -6,7 +6,7 @@ import { useServers } from '@/composables/useServers'
 import { useAuth } from '@/composables/useAuth'
 import Combobox from '@/components/Combobox.vue'
 import { toast } from 'vue-sonner'
-import { Save, Send } from 'lucide-vue-next'
+import { Save, Send, Plus, X } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,7 +32,21 @@ const form = ref({
   IP: '',
 })
 
+const pictureList = ref<string[]>([])
+const newPicture = ref('')
 const loading = ref(false)
+
+function addPicture() {
+  const v = newPicture.value.trim()
+  if (!v) return
+  if (pictureList.value.includes(v)) { toast.error('图片链接已存在'); return }
+  pictureList.value.push(v)
+  newPicture.value = ''
+}
+
+function removePicture(index: number) {
+  pictureList.value.splice(index, 1)
+}
 
 // 当前正在编辑的申请记录（用于在被驳回时展示驳回原因）
 const requestRecord = ref<any>(null)
@@ -70,6 +84,7 @@ onMounted(async () => {
           link: existing.data.link || '',
           IP: existing.data.IP || '',
         }
+        pictureList.value = Array.isArray(existing.data.picture) ? [...existing.data.picture] : []
         reqType.value = existing.req_type
         targetUuid.value = existing.target_uuid
       }
@@ -89,6 +104,7 @@ onMounted(async () => {
         link: server.link,
         IP: server.IP || '',
       }
+      pictureList.value = Array.isArray(server.picture) ? [...server.picture] : []
       reqType.value = mode.value === 'delete' ? 'delete' : 'edit'
       targetUuid.value = target.value
     } else {
@@ -100,7 +116,7 @@ onMounted(async () => {
 
 async function buildPayload() {
   // delete 类型后端只需 target_uuid，data 可空
-  const data = isDelete.value ? {} : { ...form.value, IP: form.value.IP || null }
+  const data = isDelete.value ? {} : { ...form.value, IP: form.value.IP || null, picture: pictureList.value }
   return {
     req_type: reqType.value,
     target_uuid: targetUuid.value || undefined,
@@ -217,6 +233,41 @@ async function submitRequest() {
       <div class="space-y-1.5">
         <label class="text-sm font-medium">连接地址 (可选)</label>
         <input v-model="form.IP" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm" />
+      </div>
+
+      <!-- 图片列表 -->
+      <div class="space-y-1.5">
+        <label class="text-sm font-medium">宣传图片 (可选)</label>
+        <div class="flex flex-wrap gap-2 min-h-[40px]">
+          <div
+            v-for="(pic, i) in pictureList"
+            :key="i"
+            class="group inline-flex items-center gap-1.5 rounded-md bg-secondary pl-1.5 pr-2 py-1 text-sm"
+          >
+            <img
+              :src="pic"
+              referrerpolicy="no-referrer"
+              class="h-5 w-5 rounded object-cover bg-muted shrink-0"
+              @error="(e: Event) => { (e.target as HTMLImageElement).style.display='none' }"
+            />
+            <span class="max-w-[120px] truncate text-secondary-foreground">{{ pic }}</span>
+            <button @click="removePicture(i)" class="hover:text-destructive shrink-0">
+              <X class="h-3 w-3" />
+            </button>
+          </div>
+          <span v-if="pictureList.length === 0" class="text-sm text-muted-foreground">暂无图片</span>
+        </div>
+        <div class="flex gap-2 mt-1.5">
+          <input
+            v-model="newPicture"
+            @keyup.enter="addPicture"
+            placeholder="输入图片链接..."
+            class="flex h-9 flex-1 rounded-md border bg-transparent px-3 py-1 text-sm"
+          />
+          <button type="button" @click="addPicture" class="inline-flex items-center gap-1 rounded-md border px-3 py-1 text-sm hover:bg-accent">
+            <Plus class="h-4 w-4" /> 添加
+          </button>
+        </div>
       </div>
     </div>
 

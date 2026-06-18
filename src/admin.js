@@ -106,8 +106,9 @@ admin_router.post("/edit", async(req, res) => {
             icon=$4,
             description=$5,
             link=$6,
-            IP=$7
-        WHERE uuid=$8;`,[req.body.name,req.body.type,req.body.version,req.body.icon,req.body.description,req.body.link,req.body.IP||null,req.body.uuid]);
+            IP=$7,
+            picture=$8::jsonb
+        WHERE uuid=$9;`,[req.body.name,req.body.type,req.body.version,req.body.icon,req.body.description,req.body.link,req.body.IP||null,JSON.stringify(req.body.picture||[]),req.body.uuid]);
         if(result.rowCount<=0)
         {
             return res.status(404).send("Server not found");
@@ -130,9 +131,9 @@ admin_router.post("/create", async(req, res) => {
             return res.status(400).send('Missing required fields');
         }
         const result=await db.query(`INSERT INTO server
-    (name,type,version,icon,description,link,IP,userid)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-    RETURNING uuid;`,[req.body.name,req.body.type,req.body.version,req.body.icon,req.body.description,req.body.link,req.body.IP||null,req.sessionUserId]);
+    (name,type,version,icon,description,link,IP,userid,picture)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+    RETURNING uuid;`,[req.body.name,req.body.type,req.body.version,req.body.icon,req.body.description,req.body.link,req.body.IP||null,req.sessionUserId,JSON.stringify(req.body.picture||[])]);
         await rd.del("server");
         res.send(result.rows[0].uuid);
     }
@@ -250,9 +251,9 @@ admin_router.post("/request/approve", async(req, res) => {
         }
         if (request.req_type === 'create' || force_create) {
             const result = await db.query(
-                `INSERT INTO server (name,type,version,icon,description,link,IP,userid)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING uuid;`,
-                [data.name, data.type, data.version, data.icon, data.description, data.link, data.IP || null, request.userid]
+                `INSERT INTO server (name,type,version,icon,description,link,IP,userid,picture)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) RETURNING uuid;`,
+                [data.name, data.type, data.version, data.icon, data.description, data.link, data.IP || null, request.userid, JSON.stringify(data.picture||[])]
             );
             await db.query(
                 "UPDATE server_requests SET status='approved', updated_at=now() WHERE id=$1;", [id]
@@ -260,9 +261,9 @@ admin_router.post("/request/approve", async(req, res) => {
             return res.json({ uuid: result.rows[0].uuid });
         } else {
             const result = await db.query(
-                `UPDATE server SET name=$1,type=$2,version=$3,icon=$4,description=$5,link=$6,IP=$7
-                 WHERE uuid=$8;`,
-                [data.name, data.type, data.version, data.icon, data.description, data.link, data.IP || null, request.target_uuid]
+                `UPDATE server SET name=$1,type=$2,version=$3,icon=$4,description=$5,link=$6,IP=$7,picture=$8::jsonb
+                 WHERE uuid=$9;`,
+                [data.name, data.type, data.version, data.icon, data.description, data.link, data.IP || null, JSON.stringify(data.picture||[]), request.target_uuid]
             );
             if (result.rowCount === 0) {
                 return res.status(409).json({ code: 'target_not_found' });

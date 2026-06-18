@@ -16,6 +16,7 @@ export interface Server {
   IP: string | null
   userid?: string | null
   owner_name?: string | null
+  picture?: string[]
 }
 
 export interface OidcProvider {

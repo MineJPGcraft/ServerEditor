@@ -66,13 +66,15 @@ ServerEditor/
 
 | 表名 | 关键字段 | 说明 |
 |------|---------|------|
-| `server` | `uuid` (PK, UUID), `name`, `type`, `version`, `icon`, `description`, `link`, `IP` (nullable), **`userid`** (nullable text) | 服务器列表，`userid` 标识所有者 |
+| `server` | `uuid` (PK, UUID), `name`, `type`, `version`, `icon`, `description`, `link`, `IP` (nullable), **`userid`** (nullable text), **`picture`** (jsonb, default `[]`) | 服务器列表，`userid` 标识所有者，`picture` 存储图片链接数组 |
 | `oidc` | `id` (PK, text), `name`, `secret`, `perm`, `frontend`, `redirect_uri`, `apipoint`, `auth_url` | OIDC 提供商配置 |
 | `users` | `id` (PK, text), `name`, `perm` (default 1) | 用户权限 |
 | `server_requests` | `id` (PK, UUID), `userid`, `req_type` (create/edit/delete), `target_uuid`, `data` (jsonb), `status` (draft/pending/approved/rejected), `reject_reason` | 审核工作流 |
 | `tags` | `name` (PK, text), `tag` (JSON text array) | 预定义标签 (types, versions) |
 
-> **平滑迁移**：`db.js` 使用 `ALTER TABLE server ADD COLUMN IF NOT EXISTS userid text;` 为已有表添加 `userid` 列，不会影响现有数据。
+> **平滑迁移**：`db.js` 使用 `ALTER TABLE server ADD COLUMN IF NOT EXISTS ...` 为已有表添加列，不会影响现有数据：
+> - `userid text` — 服务器所有者
+> - `picture jsonb DEFAULT '[]'::jsonb` — 图片链接数组
 
 ## 权限体系 (4 级)
 
@@ -108,7 +110,8 @@ ServerEditor/
       "link": "…",
       "IP": "…",
       "userid": "…",
-      "owner_name": "…"
+      "owner_name": "…",
+      "picture": ["https://…/img1.png", "https://…/img2.png"]
     }
   ]
 }
