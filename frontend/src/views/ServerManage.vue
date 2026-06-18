@@ -465,7 +465,6 @@ async function confirmTransfer() {
               <div
                 v-for="(pic, i) in pictureList"
                 :key="i"
-                data-pic-index
                 :data-pic-index="i"
                 @pointerdown="onPointerDown(i, $event)"
                 :class="[
