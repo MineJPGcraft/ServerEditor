@@ -110,7 +110,7 @@ function closeMobile() {
         <ThemeToggle :collapsed="collapsed" />
         <template v-if="isLoggedIn">
           <button
-            @click="logout().then(() => router.push('/'))"
+            @click="closeMobile(); logout().then(() => router.push('/'))"
             class="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive w-full transition-colors"
             :title="collapsed ? '登出' : ''"
           >
@@ -120,7 +120,7 @@ function closeMobile() {
         </template>
         <button
           v-else
-          @click="router.push('/login')"
+          @click="closeMobile(); router.push('/login')"
           class="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground w-full transition-colors"
           :title="collapsed ? '登录' : ''"
         >
