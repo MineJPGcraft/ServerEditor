@@ -27,7 +27,8 @@ server-list/
 │   ├── db.js             # 数据库初始化与平滑迁移
 │   ├── oidc-config.js    # OIDC 配置接口
 │   ├── request.js        # 用户申请 CRUD 接口
-│   └── setup.js          # 首次设置向导
+│   ├── setup.js          # 首次设置向导
+│   └── validate.js       # 输入校验工具（权限范围、请求类型白名单、URL 协议）
 ├── frontend/
 │   ├── src/
 │   │   ├── api/index.ts      # Axios 封装，所有 API 类型定义
@@ -197,6 +198,27 @@ server-list/
 | `DB_PORT` | `5432` | 数据库端口 |
 | `DB_NAME` | `serverlist` | 数据库名称 |
 | `REDIS_URL` | `redis://localhost:6379` | Redis 连接地址 |
+
+## 安全防护
+
+### SQL 注入防护
+
+所有数据库查询均使用 `pg` 参数化查询（`$1, $2, ...`），无字符串拼接，天然防止 SQL 注入。
+
+### 输入校验
+
+后端通过 `validate.js` 模块对所有用户输入进行校验，防止注入和非法数据：
+
+| 校验项 | 规则 | 说明 |
+|--------|------|------|
+| 权限值 (`perm`) | 整数 0-3 | 防止越权设置 |
+| 请求类型 (`req_type`) | `create`/`edit`/`delete` 白名单 | 防止类型注入 |
+| 标签名 (`tag`) | `types`/`versions` 白名单 | 防止操作非预期数据行 |
+| 服务器链接 (`link`) | 仅 `http:`/`https:` 协议 | 防止 `javascript:` 等存储型 XSS |
+| 服务器图标 (`icon`) | `http:`/`https:` 或 `data:image/`（排除 svg） | 兼容 base64 图标，阻断脚本注入 |
+| 图片数组 (`picture`) | 字符串数组，每个元素为 http/https URL | 防止非法结构 + XSS |
+
+校验覆盖所有写入服务器的入口：管理员直接 CRUD、用户申请创建/编辑、管理员审核通过。
 
 ## Docker 部署
 
