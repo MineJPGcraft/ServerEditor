@@ -565,6 +565,3 @@ async function confirmTransfer() {
     </Teleport>
   </div>
 </template>
-t>
-  </div>
-</template>
