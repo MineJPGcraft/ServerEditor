@@ -1,5 +1,6 @@
 import express from "express";
 import {db,rd} from "./db.js";
+import { isValidPerm, isValidReqType, isValidTagName, validateServerUrls } from "./validate.js";
 export const admin_router = express.Router();
 admin_router.post("/user/edit", async(req, res) => {
     if(req.sessionPerm < 3) return res.status(403).send("Permission denied");
@@ -8,6 +9,10 @@ admin_router.post("/user/edit", async(req, res) => {
         if(!req.body.id || req.body.perm === undefined)
         {
             return res.status(400).send('Missing required fields');
+        }
+        if(!isValidPerm(req.body.perm))
+        {
+            return res.status(400).send('Invalid permission value');
         }
         const result=await db.query("UPDATE users SET perm=$1 WHERE id=$2;",[req.body.perm,req.body.id]);
         if(result.rowCount<=0)
@@ -99,6 +104,11 @@ admin_router.post("/edit", async(req, res) => {
         {
             return res.status(400).send('Missing required fields');
         }
+        const urlErr=validateServerUrls(req.body);
+        if(urlErr)
+        {
+            return res.status(400).send(urlErr);
+        }
         const result=await db.query(`UPDATE server SET
             name=$1,
             type=$2,
@@ -129,6 +139,11 @@ admin_router.post("/create", async(req, res) => {
         if(reqs.filter(i=>!req.body[i]).length>0)
         {
             return res.status(400).send('Missing required fields');
+        }
+        const urlErr=validateServerUrls(req.body);
+        if(urlErr)
+        {
+            return res.status(400).send(urlErr);
         }
         const result=await db.query(`INSERT INTO server
     (name,type,version,icon,description,link,IP,userid,picture)
@@ -209,6 +224,13 @@ admin_router.post("/request/edit", async(req, res) => {
     try {
         const { id, data, req_type, target_uuid } = req.body;
         if (!id) return res.status(400).send('Missing id');
+        if (req_type !== undefined && !isValidReqType(req_type)) {
+            return res.status(400).send('Invalid req_type');
+        }
+        if (data !== undefined) {
+            const urlErr = validateServerUrls(data);
+            if (urlErr) return res.status(400).send(urlErr);
+        }
         const existing = (await db.query(
             "SELECT * FROM server_requests WHERE id=$1;", [id]
         )).rows;
@@ -249,6 +271,8 @@ admin_router.post("/request/approve", async(req, res) => {
         if (reqs.filter(i => !data[i]).length > 0) {
             return res.status(400).send('Missing required fields in request data');
         }
+        const approveUrlErr = validateServerUrls(data);
+        if (approveUrlErr) return res.status(400).send(approveUrlErr);
         if (request.req_type === 'create' || force_create) {
             const result = await db.query(
                 `INSERT INTO server (name,type,version,icon,description,link,IP,userid,picture)
@@ -320,6 +344,12 @@ admin_router.post("/request/submit", async(req, res) => {
 
 admin_router.post("/tag/:tag/edit",async(req, res) => {
     try {
+        if(!isValidTagName(req.params.tag)) {
+            return res.status(400).send('Invalid tag name');
+        }
+        if(!Array.isArray(req.body.tag)) {
+            return res.status(400).send('Tag must be an array');
+        }
         let tag=JSON.stringify(req.body.tag);
         await db.query("UPDATE tags SET tag=$1 WHERE name=$2",[tag,req.params.tag]);
         await rd.del("server");

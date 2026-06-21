@@ -33,6 +33,7 @@ ServerEditor/
 │   ├── request.js            # 用户申请路由：创建/编辑/提交/撤回/删除申请
 │   ├── oidc-config.js        # OIDC 提供商配置 CRUD
 │   ├── setup.js              # 首次设置向导 (无超管时开放 /setup)
+│   ├── validate.js           # 输入校验工具 (权限范围、请求类型白名单、URL 协议、图片数组)
 ├── frontend/                 # Vue 3 前端
 │   ├── src/
 │   │   ├── main.ts           # Vue 应用入口、路由创建、主题初始化
@@ -208,6 +209,28 @@ ServerEditor/
 5. 新用户插入 `users` 表 (初始 perm 为提供商配置值或 1)
 6. 创建 Redis session，设置 cookie
 7. 重定向到 `frontend` URL 或 `/`
+
+## 输入校验与安全防护
+
+所有用户输入在写入数据库前均经过 `validate.js` 模块校验，防止注入和非法数据。
+
+### 校验规则
+
+| 校验项 | 函数 | 规则 | 应用位置 |
+|--------|------|------|---------|
+| 权限值 | `isValidPerm` | 必须为整数 0-3 | `/admin/user/edit`、`/oidcConfig/admin/*`、`/setup/oidc` |
+| 请求类型 | `isValidReqType` | 必须为 `create`/`edit`/`delete` | `/request/create`、`/request/edit`、`/admin/request/edit` |
+| 标签名 | `isValidTagName` | 必须为 `types`/`versions` | `/admin/tag/:tag/edit` |
+| 服务器 URL | `validateServerUrls` | `link` 仅 http/https；`icon` 允许 http/https 和 `data:image/`（排除 svg）；`picture` 必须为 http/https URL 字符串数组 | 所有写入服务器的入口（admin CRUD、request create/edit、approve） |
+
+### 防护范围
+
+- **权限越权** — `perm` 限制为 0-3，防止传入 999 等越权值
+- **类型注入** — `req_type`、`tag` 名称使用白名单校验
+- **存储型 XSS** — URL 字段仅允许 `http:`/`https:` 协议，`icon` 额外允许 `data:image/`（排除 svg），阻断 `javascript:`、`data:text/html` 等危险协议
+- **结构校验** — `picture` 必须为字符串数组，`tag` 必须为数组
+
+> **注意**：SQL 注入通过 `pg` 参数化查询（`$1, $2, ...`）防护，所有数据库查询均使用参数化，无字符串拼接。
 
 ## 环境变量
 

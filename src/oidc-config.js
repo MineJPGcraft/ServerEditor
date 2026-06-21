@@ -1,5 +1,6 @@
 import express from "express";
 import {db} from "./db.js";
+import { isValidPerm } from "./validate.js";
 export let oidcConfigRouter=express.Router();
 oidcConfigRouter.get("/list",async(req,res)=>
 {
@@ -63,6 +64,10 @@ oidcConfigRouter.post("/admin/edit",async(req,res)=>
         {
             return res.status(400).send('No fields to update');
         }
+        if(req.body.perm!==undefined && req.body.perm!==null && !isValidPerm(req.body.perm))
+        {
+            return res.status(400).send('Invalid permission value');
+        }
         const setClauses=updates.map((f,i)=>`${f}=$${i+1}`).join(',');
         const values=[...updates.map(f=>req.body[f]),req.body.id];
         const result=await db.query(`UPDATE oidc SET ${setClauses} WHERE id=$${values.length};`,values);
@@ -91,6 +96,10 @@ oidcConfigRouter.post("/admin/edit-nosecert",async(req,res)=>
         {
             return res.status(400).send('No fields to update');
         }
+        if(req.body.perm!==undefined && req.body.perm!==null && !isValidPerm(req.body.perm))
+        {
+            return res.status(400).send('Invalid permission value');
+        }
         const setClauses=updates.map((f,i)=>`${f}=$${i+1}`).join(',');
         const values=[...updates.map(f=>req.body[f]),req.body.id];
         const result=await db.query(`UPDATE oidc SET ${setClauses} WHERE id=$${values.length};`,values);
@@ -113,6 +122,10 @@ oidcConfigRouter.post("/admin/create",async(req,res)=>
         if(reqs.filter(i=>!req.body[i]).length>0)
         {
             return res.status(400).send('Missing required fields');
+        }
+        if(req.body.perm!==undefined && req.body.perm!==null && !isValidPerm(req.body.perm))
+        {
+            return res.status(400).send('Invalid permission value');
         }
         const result=await db.query(`INSERT INTO oidc
     (id,secret,perm,frontend,redirect_uri,apipoint,auth_url,name)

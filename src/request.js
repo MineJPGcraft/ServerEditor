@@ -1,5 +1,6 @@
 import express from "express";
 import {db} from "./db.js";
+import { isValidReqType, validateServerUrls } from "./validate.js";
 export const userRequestRouter = express.Router();
 
 const MAX_PENDING_PER_USER = parseInt(process.env.MAX_PENDING_PER_USER) || 3;
@@ -26,11 +27,15 @@ userRequestRouter.post("/create", async (req, res) => {
         if (!req_type || !data) {
             return res.status(400).send('Missing required fields');
         }
-        if (!['create', 'edit', 'delete'].includes(req_type)) {
+        if (!isValidReqType(req_type)) {
             return res.status(400).send('Invalid req_type');
         }
         if (req_type === 'delete' && !target_uuid) {
             return res.status(400).send('target_uuid required for delete requests');
+        }
+        if (req_type !== 'delete') {
+            const urlErr = validateServerUrls(data);
+            if (urlErr) return res.status(400).send(urlErr);
         }
         const result = await db.query(
             `INSERT INTO server_requests (userid, req_type, target_uuid, data)
@@ -49,6 +54,11 @@ userRequestRouter.post("/edit", async (req, res) => {
         if (!id || !data) {
             return res.status(400).send('Missing required fields');
         }
+        if (req_type !== undefined && !isValidReqType(req_type)) {
+            return res.status(400).send('Invalid req_type');
+        }
+        const urlErr = validateServerUrls(data);
+        if (urlErr) return res.status(400).send(urlErr);
         const existing = (await db.query(
             "SELECT * FROM server_requests WHERE id=$1;", [id]
         )).rows;

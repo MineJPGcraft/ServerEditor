@@ -1,6 +1,7 @@
 import express from "express";
 import {db, rd} from "./db.js";
 import { checkSession } from "./auth.js";
+import { isValidPerm } from "./validate.js";
 export const setupRouter = express.Router();
 
 const checkSetupMode = async (req, res, next) => {
@@ -27,6 +28,9 @@ setupRouter.post('/oidc', checkSetupMode, async (req, res) => {
         const reqs = ['id', 'secret', 'redirect_uri', 'apipoint', 'auth_url', 'name'];
         if (reqs.filter(i => !req.body[i]).length > 0) {
             return res.status(400).send('Missing required fields');
+        }
+        if (req.body.perm !== undefined && req.body.perm !== null && !isValidPerm(req.body.perm)) {
+            return res.status(400).send('Invalid permission value');
         }
         await db.query(
             `INSERT INTO oidc (id,secret,perm,frontend,redirect_uri,apipoint,auth_url,name)
