@@ -6,6 +6,7 @@ import { useAuth } from '@/composables/useAuth'
 import { api, type Server } from '@/api'
 import ServerCard from '@/components/ServerCard.vue'
 import Combobox from '@/components/Combobox.vue'
+import { isValidUrl, validateServerUrls } from '@/utils/validate'
 import { toast } from 'vue-sonner'
 import { Search, RefreshCw, Plus, X } from 'lucide-vue-next'
 
@@ -62,6 +63,7 @@ const newPicture = ref('')
 function addPicture() {
   const v = newPicture.value.trim()
   if (!v) return
+  if (!isValidUrl(v)) { toast.error('图片链接必须是 http:// 或 https:// 开头'); return }
   if (pictureList.value.includes(v)) { toast.error('图片链接已存在'); return }
   pictureList.value.push(v)
   newPicture.value = ''
@@ -90,7 +92,10 @@ function openEdit(server: Server) {
 async function saveEdit() {
   if (!editingServer.value) return
   try {
-    await api.servers.edit({ ...editForm.value, uuid: editingServer.value.uuid, IP: editForm.value.IP || null, picture: pictureList.value })
+    const data = { ...editForm.value, uuid: editingServer.value.uuid, IP: editForm.value.IP || null, picture: pictureList.value }
+    const urlErr = validateServerUrls(data)
+    if (urlErr) { toast.error(urlErr); return }
+    await api.servers.edit(data as any)
     toast.success('服务器已更新')
     showEditDialog.value = false
     fetchServers()
@@ -329,5 +334,11 @@ onMounted(() => {
         </div>
       </div>
     </div>
+  </div>
+</template>
+  </div>
+  </div>
+</template>
+
   </div>
 </template>

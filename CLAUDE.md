@@ -57,6 +57,7 @@ ServerEditor/
 │   │   │   ├── Login.vue          # 登录页
 │   │   │   └── Setup.vue          # 首次安装向导
 │   │   └── components/      # 共享组件 (Combobox, ServerCard, ReqTypeBadge 等)
+│   ├── utils/validate.ts      # 前端输入校验工具 (与后端 validate.js 规则一致)
 │   ├── vite.config.ts        # Vite 配置 (端口 5173, /api 代理到 :8080)
 │   └── tailwind.config.ts    # Tailwind 配置
 ├── Dockerfile                # 多阶段 Docker 构建
@@ -212,9 +213,9 @@ ServerEditor/
 
 ## 输入校验与安全防护
 
-所有用户输入在写入数据库前均经过 `validate.js` 模块校验，防止注入和非法数据。
+所有用户输入在写入数据库前均经过校验，前后端双重防护。
 
-### 校验规则
+### 后端校验 (`src/validate.js`)
 
 | 校验项 | 函数 | 规则 | 应用位置 |
 |--------|------|------|---------|
@@ -222,6 +223,17 @@ ServerEditor/
 | 请求类型 | `isValidReqType` | 必须为 `create`/`edit`/`delete` | `/request/create`、`/request/edit`、`/admin/request/edit` |
 | 标签名 | `isValidTagName` | 必须为 `types`/`versions` | `/admin/tag/:tag/edit` |
 | 服务器 URL | `validateServerUrls` | `link` 仅 http/https；`icon` 允许 http/https 和 `data:image/`（排除 svg）；`picture` 必须为 http/https URL 字符串数组 | 所有写入服务器的入口（admin CRUD、request create/edit、approve） |
+
+### 前端校验 (`frontend/src/utils/validate.ts`)
+
+与后端规则一致的 TypeScript 实现，在提交前提供即时反馈（toast 提示），避免无效请求发到后端：
+
+| 校验位置 | 校验内容 |
+|---------|---------|
+| `ServerManage.vue` `addPicture()` / `saveForm()` | 图片 URL 协议 + 服务器 link/icon/picture |
+| `ServerList.vue` `addPicture()` / `saveEdit()` | 图片 URL 协议 + 服务器 link/icon/picture |
+| `RequestForm.vue` `addPicture()` / `saveDraft()` / `submitRequest()` | 图片 URL 协议 + 服务器 link/icon/picture（delete 类型跳过） |
+| `OidcForm.vue` `handleSubmit()` | perm 为 0-3 + auth_url/apipoint/redirect_uri/frontend URL 协议 |
 
 ### 防护范围
 

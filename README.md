@@ -35,7 +35,8 @@ server-list/
 │   │   ├── router/index.ts   # 路由 + 权限守卫
 │   │   ├── composables/      # useAuth, useServers, useTheme
 │   │   ├── views/            # 页面组件
-│   │   └── components/       # 共享组件
+│   │   ├── components/       # 共享组件
+│   │   └── utils/validate.ts # 前端输入校验工具（与后端规则一致）
 └── package.json
 ```
 
@@ -207,7 +208,9 @@ server-list/
 
 ### 输入校验
 
-后端通过 `validate.js` 模块对所有用户输入进行校验，防止注入和非法数据：
+系统采用前后端双重校验，防止注入和非法数据：
+
+**后端**（`src/validate.js`）— 所有写入数据库的入口均校验：
 
 | 校验项 | 规则 | 说明 |
 |--------|------|------|
@@ -217,6 +220,14 @@ server-list/
 | 服务器链接 (`link`) | 仅 `http:`/`https:` 协议 | 防止 `javascript:` 等存储型 XSS |
 | 服务器图标 (`icon`) | `http:`/`https:` 或 `data:image/`（排除 svg） | 兼容 base64 图标，阻断脚本注入 |
 | 图片数组 (`picture`) | 字符串数组，每个元素为 http/https URL | 防止非法结构 + XSS |
+
+**前端**（`frontend/src/utils/validate.ts`）— 与后端规则一致的 TypeScript 实现，在提交前提供即时 toast 反馈：
+
+| 校验位置 | 校验内容 |
+|---------|---------|
+| ServerManage / ServerList | 添加图片时校验 URL 协议；保存服务器时校验 link/icon/picture |
+| RequestForm | 添加图片时校验 URL 协议；保存草稿/提交审核时校验 link/icon/picture（delete 类型跳过） |
+| OidcForm | 提交时校验 perm 为 0-3 + auth_url/apipoint/redirect_uri/frontend URL 协议 |
 
 校验覆盖所有写入服务器的入口：管理员直接 CRUD、用户申请创建/编辑、管理员审核通过。
 

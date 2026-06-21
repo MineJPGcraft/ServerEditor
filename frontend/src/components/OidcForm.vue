@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import axios from 'axios'
 import type { OidcProviderAdmin } from '@/api'
+import { isValidPerm, isValidUrl } from '@/utils/validate'
 import { toast } from 'vue-sonner'
 import { Search, Loader2 } from 'lucide-vue-next'
 
@@ -81,6 +82,28 @@ async function discover() {
 }
 
 function handleSubmit() {
+  // perm 校验：填了就必须是 0-3
+  if (form.value.perm !== null && form.value.perm !== undefined && !isValidPerm(form.value.perm)) {
+    toast.error('权限等级必须是 0-3 的整数')
+    return
+  }
+  // URL 协议校验
+  if (form.value.auth_url && !isValidUrl(form.value.auth_url)) {
+    toast.error('Auth URL 必须是 http:// 或 https:// 开头')
+    return
+  }
+  if (form.value.apipoint && !isValidUrl(form.value.apipoint)) {
+    toast.error('API Point 必须是 http:// 或 https:// 开头')
+    return
+  }
+  if (form.value.redirect_uri && !isValidUrl(form.value.redirect_uri)) {
+    toast.error('Redirect URI 必须是 http:// 或 https:// 开头')
+    return
+  }
+  if (form.value.frontend && !isValidUrl(form.value.frontend)) {
+    toast.error('Frontend URL 必须是 http:// 或 https:// 开头')
+    return
+  }
   // perm 为空时不覆盖，后端按 OIDC 提供商 perm 与用户 perm 取最大值
   const payload: Partial<OidcProviderAdmin> = {
     ...form.value,

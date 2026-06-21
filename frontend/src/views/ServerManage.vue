@@ -4,6 +4,7 @@ import { api, type Server, type UserInfo } from '@/api'
 import { useAuth } from '@/composables/useAuth'
 import { toast } from 'vue-sonner'
 import Combobox from '@/components/Combobox.vue'
+import { isValidUrl, validateServerUrls } from '@/utils/validate'
 import { Plus, RefreshCw, UserCog, ArrowLeftRight, Search, GripVertical, X, Image } from 'lucide-vue-next'
 
 const { isSuperAdmin } = useAuth()
@@ -136,6 +137,7 @@ onMounted(() => {
 function addPicture() {
   const v = newPicture.value.trim()
   if (!v) return
+  if (!isValidUrl(v)) { toast.error('图片链接必须是 http:// 或 https:// 开头'); return }
   if (pictureList.value.includes(v)) { toast.error('图片链接已存在'); return }
   pictureList.value.push(v)
   newPicture.value = ''
@@ -175,6 +177,8 @@ function openEdit(server: Server) {
 async function saveForm() {
   try {
     const data = { ...form.value, IP: form.value.IP || null, picture: pictureList.value }
+    const urlErr = validateServerUrls(data)
+    if (urlErr) { toast.error(urlErr); return }
     if (isCreate.value) {
       await api.servers.create(data)
       toast.success('服务器已创建')
@@ -559,5 +563,8 @@ async function confirmTransfer() {
         {{ ghost.text }}
       </div>
     </Teleport>
+  </div>
+</template>
+t>
   </div>
 </template>

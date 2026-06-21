@@ -5,6 +5,7 @@ import { api } from '@/api'
 import { useServers } from '@/composables/useServers'
 import { useAuth } from '@/composables/useAuth'
 import Combobox from '@/components/Combobox.vue'
+import { isValidUrl, validateServerUrls } from '@/utils/validate'
 import { toast } from 'vue-sonner'
 import { Save, Send, Plus, X } from 'lucide-vue-next'
 
@@ -39,6 +40,7 @@ const loading = ref(false)
 function addPicture() {
   const v = newPicture.value.trim()
   if (!v) return
+  if (!isValidUrl(v)) { toast.error('图片链接必须是 http:// 或 https:// 开头'); return }
   if (pictureList.value.includes(v)) { toast.error('图片链接已存在'); return }
   pictureList.value.push(v)
   newPicture.value = ''
@@ -128,6 +130,10 @@ async function saveDraft() {
   loading.value = true
   try {
     const payload = await buildPayload()
+    if (!isDelete.value) {
+      const urlErr = validateServerUrls(payload.data)
+      if (urlErr) { toast.error(urlErr); return }
+    }
     if (requestId.value) {
       await api.requests.edit({
         id: requestId.value,
@@ -152,6 +158,10 @@ async function submitRequest() {
   loading.value = true
   try {
     const payload = await buildPayload()
+    if (!isDelete.value) {
+      const urlErr = validateServerUrls(payload.data)
+      if (urlErr) { toast.error(urlErr); return }
+    }
     if (requestId.value) {
       await api.requests.edit({
         id: requestId.value,
