@@ -5,7 +5,7 @@
 
 /** 校验权限值是否为 0-3 的整数 */
 export function isValidPerm(perm: unknown): perm is number {
-  return Number.isInteger(perm) && perm >= 0 && perm <= 3
+  return Number.isInteger(perm) && (perm as number) >= 0 && (perm as number) <= 3
 }
 
 /** 校验请求类型 */
