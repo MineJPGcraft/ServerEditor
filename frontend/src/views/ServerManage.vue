@@ -264,17 +264,17 @@ async function confirmTransfer() {
       </div>
       <select
         v-model="filterType"
-        class="flex h-9 w-[140px] rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        class="flex h-9 w-[140px] rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:bg-background dark:text-foreground"
       >
-        <option value="">全部类型</option>
-        <option v-for="t in types" :key="t" :value="t">{{ t }}</option>
+        <option value="" class="bg-background text-foreground dark:bg-background dark:text-foreground">全部类型</option>
+        <option v-for="t in types" :key="t" :value="t" class="bg-background text-foreground dark:bg-background dark:text-foreground">{{ t }}</option>
       </select>
       <select
         v-model="filterVersion"
-        class="flex h-9 w-[140px] rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        class="flex h-9 w-[140px] rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:bg-background dark:text-foreground"
       >
-        <option value="">全部版本</option>
-        <option v-for="v in versions" :key="v" :value="v">{{ v }}</option>
+        <option value="" class="bg-background text-foreground dark:bg-background dark:text-foreground">全部版本</option>
+        <option v-for="v in versions" :key="v" :value="v" class="bg-background text-foreground dark:bg-background dark:text-foreground">{{ v }}</option>
       </select>
     </div>
 
@@ -534,9 +534,9 @@ async function confirmTransfer() {
           </div>
           <div class="space-y-1.5">
             <label class="text-sm font-medium">新所有者 <span class="text-destructive">*</span></label>
-            <select v-model="transferUserId" class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm">
-              <option value="">请选择用户</option>
-              <option v-for="u in users" :key="u.id" :value="u.id">
+            <select v-model="transferUserId" class="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm dark:bg-background dark:text-foreground">
+              <option value="" class="bg-background text-foreground dark:bg-background dark:text-foreground">请选择用户</option>
+              <option v-for="u in users" :key="u.id" :value="u.id" class="bg-background text-foreground dark:bg-background dark:text-foreground">
                 {{ u.name }} ({{ u.id }}) — 权限 {{ u.perm }}
               </option>
             </select>

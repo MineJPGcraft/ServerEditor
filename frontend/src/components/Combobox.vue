@@ -52,18 +52,18 @@ function onCustomInput(e: Event) {
     <select
       :value="isCustom ? '__custom__' : modelValue"
       :required="required && !isCustom"
-      class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      class="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:bg-background dark:text-foreground"
       @change="onSelectChange"
     >
-      <option value="" disabled>{{ placeholder }}</option>
-      <option v-for="opt in options" :key="opt" :value="opt">{{ opt }}</option>
-      <option value="__custom__">✏️ 自定义...</option>
+      <option value="" disabled class="bg-background text-foreground dark:bg-background dark:text-foreground">{{ placeholder }}</option>
+      <option v-for="opt in options" :key="opt" :value="opt" class="bg-background text-foreground dark:bg-background dark:text-foreground">{{ opt }}</option>
+      <option value="__custom__" class="bg-background text-foreground dark:bg-background dark:text-foreground">✏️ 自定义...</option>
     </select>
     <input
       v-if="isCustom"
       :value="customValue"
       :placeholder="placeholder"
-      class="flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      class="flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:bg-background dark:text-foreground"
       @input="onCustomInput"
     />
   </div>

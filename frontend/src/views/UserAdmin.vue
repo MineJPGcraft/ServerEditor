@@ -191,12 +191,12 @@ function permColor(p: number) {
                   :value="user.perm"
                   @change="(e: any) => openPermChange(user, parseInt(e.target.value))"
                   :disabled="savingId === user.id"
-                  :class="['flex h-8 w-32 rounded-md border bg-transparent px-2 py-1 text-sm', permColor(user.perm)]"
+                  :class="['flex h-8 w-32 rounded-md border bg-background px-2 py-1 text-sm dark:bg-background', permColor(user.perm)]"
                 >
-                  <option :value="0">已封禁</option>
-                  <option :value="1">普通用户</option>
-                  <option :value="2">管理员</option>
-                  <option :value="3">超级管理员</option>
+                  <option :value="0" class="bg-background text-foreground dark:bg-background dark:text-foreground">已封禁</option>
+                  <option :value="1" class="bg-background text-foreground dark:bg-background dark:text-foreground">普通用户</option>
+                  <option :value="2" class="bg-background text-foreground dark:bg-background dark:text-foreground">管理员</option>
+                  <option :value="3" class="bg-background text-foreground dark:bg-background dark:text-foreground">超级管理员</option>
                 </select>
               </td>
               <td class="px-4 py-3 text-right whitespace-nowrap">
