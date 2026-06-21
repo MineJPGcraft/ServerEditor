@@ -198,7 +198,7 @@ async function confirmReject() {
           <div><span class="text-muted-foreground">目标:</span> {{ detailRequest.target_uuid || '新建' }}</div>
           <div v-for="(v, k) in detailRequest.data" v-show="k !== 'picture'" :key="k" class="flex gap-2">
             <span class="text-muted-foreground shrink-0">{{ k }}:</span>
-            <span class="break-all">{{ v }}</span>
+            <span :class="['break-all', k === 'description' ? 'whitespace-pre-line' : '']">{{ v }}</span>
           </div>
           <div v-if="Array.isArray(detailRequest.data.picture) && detailRequest.data.picture.length > 0" class="space-y-1">
             <span class="text-muted-foreground text-sm">宣传图片:</span>

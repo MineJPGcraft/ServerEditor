@@ -310,7 +310,7 @@ async function confirmTransfer() {
             </div>
           </div>
 
-          <p class="text-sm text-muted-foreground line-clamp-3 mb-3 break-words">
+          <p class="text-sm text-muted-foreground line-clamp-3 mb-3 break-words whitespace-pre-line">
             {{ server.description || '暂无描述' }}
           </p>
 
