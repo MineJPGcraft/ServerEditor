@@ -270,7 +270,7 @@ onMounted(() => {
           </div>
           <div class="space-y-1.5">
             <label class="text-sm font-medium">描述 <span class="text-destructive">*</span></label>
-            <textarea v-model="editForm.description" required rows="3" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm" />
+            <textarea v-model="editForm.description" required rows="3" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm"></textarea>
           </div>
           <div class="space-y-1.5">
             <label class="text-sm font-medium">链接 <span class="text-destructive">*</span></label>

@@ -237,7 +237,7 @@ async function confirmReject() {
       <div class="w-full max-w-sm rounded-lg border bg-card p-6 shadow-lg mx-4">
         <h2 class="text-lg font-semibold mb-2">驳回申请</h2>
         <p class="text-sm text-muted-foreground mb-3">请输入驳回理由（可选）</p>
-        <textarea v-model="rejectReason" rows="3" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm" placeholder="驳回理由..." />
+        <textarea v-model="rejectReason" rows="3" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm" placeholder="驳回理由..."></textarea>
         <div class="flex justify-end gap-2 mt-4">
           <button @click="showRejectDialog = false" class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm hover:bg-accent">取消</button>
           <button @click="confirmReject" class="inline-flex items-center justify-center rounded-md bg-destructive px-4 py-2 text-sm text-destructive-foreground hover:bg-destructive/90">确认驳回</button>

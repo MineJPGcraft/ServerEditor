@@ -232,7 +232,7 @@ async function submitRequest() {
 
       <div class="space-y-1.5">
         <label class="text-sm font-medium">描述 <span class="text-destructive">*</span></label>
-        <textarea v-model="form.description" required rows="4" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm" placeholder="服务器描述..." />
+        <textarea v-model="form.description" required rows="4" class="flex w-full rounded-md border bg-transparent px-3 py-2 text-sm" placeholder="服务器描述..."></textarea>
       </div>
 
       <div class="space-y-1.5">
