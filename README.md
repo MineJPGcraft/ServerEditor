@@ -28,7 +28,8 @@ server-list/
 │   ├── oidc-config.js    # OIDC 配置接口
 │   ├── request.js        # 用户申请 CRUD 接口
 │   ├── setup.js          # 首次设置向导
-│   └── validate.js       # 输入校验工具（权限范围、请求类型白名单、URL 协议）
+│   ├── validate.js       # 输入校验工具（权限范围、请求类型白名单、URL 协议）
+│   └── notify.js         # 邮件通知（Webhook 推送，审核通过/驳回时触发）
 ├── frontend/
 │   ├── src/
 │   │   ├── api/index.ts      # Axios 封装，所有 API 类型定义
@@ -121,12 +122,21 @@ server-list/
 3. 审核编辑类申请时若目标服务器已删除，可选择转为新建工单
 4. 管理员自身可直接操作服务器，无需提交申请
 
+**邮件通知：**
+- 审核通过或驳回时，系统自动向申请人发送邮件通知
+- 通知通过 Webhook 推送，需配置 `MAIL_WEBHOOK_URL` 和 `MAIL_WEBHOOK_TOKEN` 环境变量
+- 邮件内容包括申请类型、服务器名称、申请编号；驳回邮件额外包含驳回理由
+- 申请人邮箱来自 OIDC 登录时同步的 `email` 字段，无邮箱的用户静默跳过
+- Webhook 未配置或发送失败时不影响审核操作本身
+
 ### 用户管理（perm ≥ 3）
-- 查看所有已登录过的用户
+- 查看所有已登录过的用户（ID、名称、邮箱、权限）
 - 修改用户的权限等级（0/1/2/3，0 表示封禁）
 - 删除用户（删除后立即使其所有会话失效）
 
 > 封禁 = 将用户权限设为 0（仍可登录但无任何操作权限）。
+>
+> 用户邮箱在 OIDC 登录时自动从 id_token 中同步获取，Token 登录用户无邮箱。
 
 ### OIDC 配置管理（perm ≥ 3）
 - 增删改 OIDC 提供商配置
@@ -177,7 +187,7 @@ server-list/
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/api/admin/transfer` | 转移服务器所有权 `{ uuid, userid }` |
-| GET | `/api/admin/user/list` | 获取用户列表 |
+| GET | `/api/admin/user/list` | 获取用户列表（含邮箱） |
 | POST | `/api/admin/user/edit` | 修改用户权限（0=封禁） |
 | POST | `/api/admin/user/delete` | 删除用户（删除时删除其所有会话） |
 | GET | `/api/oidcConfig/admin/list` | 获取 OIDC 完整配置列表（secret 脱敏返回） |
@@ -199,6 +209,8 @@ server-list/
 | `DB_PORT` | `5432` | 数据库端口 |
 | `DB_NAME` | `serverlist` | 数据库名称 |
 | `REDIS_URL` | `redis://localhost:6379` | Redis 连接地址 |
+| `MAIL_WEBHOOK_URL` | 无 | 邮件通知 Webhook 地址（不设置则禁用邮件通知） |
+| `MAIL_WEBHOOK_TOKEN` | 无 | 邮件通知 Webhook Bearer Token |
 
 ## 安全防护
 
@@ -242,6 +254,8 @@ docker run -d \
   -e DB_HOST=postgres-db \
   -e DB_PASSWORD=password \
   -e DB_NAME=serverlist \
+  -e MAIL_WEBHOOK_URL=http://localhost:8000/push \
+  -e MAIL_WEBHOOK_TOKEN=your-secret-token \
   --link postgres-db:postgres-db \
   ghcr.io/minejpgcraft/servereditor:latest
 ```

@@ -173,11 +173,12 @@ function permColor(p: number) {
 
     <div v-else class="space-y-4">
       <div class="rounded-md border overflow-x-auto">
-        <table class="w-full min-w-[560px]">
+        <table class="w-full min-w-[680px]">
           <thead>
             <tr class="border-b bg-muted/50">
               <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">ID</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">名称</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">邮箱</th>
               <th class="px-4 py-3 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">权限</th>
               <th class="px-4 py-3 text-right text-xs font-medium text-muted-foreground whitespace-nowrap">操作</th>
             </tr>
@@ -186,6 +187,7 @@ function permColor(p: number) {
             <tr v-for="user in paginatedUsers" :key="user.id" class="border-b last:border-0">
               <td class="px-4 py-3 text-xs text-muted-foreground font-mono">{{ user.id }}</td>
               <td class="px-4 py-3 text-sm font-medium whitespace-nowrap">{{ user.name }}</td>
+              <td class="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{{ user.email || '—' }}</td>
               <td class="px-4 py-3">
                 <select
                   :value="user.perm"

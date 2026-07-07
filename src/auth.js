@@ -41,13 +41,20 @@ authRouter.get("/callback", async (req, res) => {
         if(user_info.length<=0)
         {
             await client.query(`INSERT INTO users
-                (id,name,perm)
-                VALUES ($1,$2,$3);`,[json_info.sub,json_info.name||json_info.sub,oidc_client[0].perm||1]);
+                (id,name,perm,email)
+                VALUES ($1,$2,$3,$4);`,[json_info.sub,json_info.name||json_info.sub,oidc_client[0].perm||1,json_info.email||null]);
         }
-        else if(json_info.name && json_info.name !== user_info[0].name)
+        else
         {
-            // 已有用户登录时同步 OIDC 返回的用户名
-            await client.query("UPDATE users SET name=$1 WHERE id=$2;",[json_info.name, json_info.sub]);
+            // 已有用户登录时同步 OIDC 返回的用户名和邮箱
+            if(json_info.name && json_info.name !== user_info[0].name)
+            {
+                await client.query("UPDATE users SET name=$1 WHERE id=$2;",[json_info.name, json_info.sub]);
+            }
+            if(json_info.email && json_info.email !== user_info[0].email)
+            {
+                await client.query("UPDATE users SET email=$1 WHERE id=$2;",[json_info.email, json_info.sub]);
+            }
         }
         // else if(user_info[0].banned)
         // {

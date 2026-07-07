@@ -62,6 +62,7 @@ export interface UserInfo {
   id: string
   name: string
   perm: number
+  email: string | null
 }
 
 export const api = {

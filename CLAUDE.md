@@ -34,6 +34,7 @@ ServerEditor/
 │   ├── oidc-config.js        # OIDC 提供商配置 CRUD
 │   ├── setup.js              # 首次设置向导 (无超管时开放 /setup)
 │   ├── validate.js           # 输入校验工具 (权限范围、请求类型白名单、URL 协议、图片数组)
+│   ├── notify.js             # 邮件通知 (Webhook 推送，审核通过/驳回时触发)
 ├── frontend/                 # Vue 3 前端
 │   ├── src/
 │   │   ├── main.ts           # Vue 应用入口、路由创建、主题初始化
@@ -70,13 +71,14 @@ ServerEditor/
 |------|---------|------|
 | `server` | `uuid` (PK, UUID), `name`, `type`, `version`, `icon`, `description`, `link`, `IP` (nullable), **`userid`** (nullable text), **`picture`** (jsonb, default `[]`) | 服务器列表，`userid` 标识所有者，`picture` 存储图片链接数组 |
 | `oidc` | `id` (PK, text), `name`, `secret`, `perm`, `frontend`, `redirect_uri`, `apipoint`, `auth_url` | OIDC 提供商配置 |
-| `users` | `id` (PK, text), `name`, `perm` (default 1) | 用户权限 |
+| `users` | `id` (PK, text), `name`, `perm` (default 1), **`email`** (nullable text) | 用户权限与邮箱 |
 | `server_requests` | `id` (PK, UUID), `userid`, `req_type` (create/edit/delete), `target_uuid`, `data` (jsonb), `status` (draft/pending/approved/rejected), `reject_reason` | 审核工作流 |
 | `tags` | `name` (PK, text), `tag` (JSON text array) | 预定义标签 (types, versions) |
 
-> **平滑迁移**：`db.js` 使用 `ALTER TABLE server ADD COLUMN IF NOT EXISTS ...` 为已有表添加列，不会影响现有数据：
-> - `userid text` — 服务器所有者
-> - `picture jsonb DEFAULT '[]'::jsonb` — 图片链接数组
+> **平滑迁移**：`db.js` 使用 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...` 为已有表添加列，不会影响现有数据：
+> - `server.userid text` — 服务器所有者
+> - `server.picture jsonb DEFAULT '[]'::jsonb` — 图片链接数组
+> - `users.email text` — 用户邮箱（OIDC 登录时同步）
 
 ## 权限体系 (4 级)
 
@@ -190,6 +192,21 @@ ServerEditor/
 
 > **注意**：perm≥2 管理员可直接操作任意服务器（`/api/admin/edit`、`/api/admin/delete`），无需走审核流程。
 
+### 审核邮件通知
+
+审核通过或驳回时，系统自动向申请人发送邮件通知（通过 Webhook 推送）。
+
+| 触发接口 | 通知函数 | 邮件内容 |
+|---------|---------|---------|
+| `POST /api/admin/request/approve` | `notifyApproved()` | 申请类型、服务器名称、申请编号 |
+| `POST /api/admin/request/reject` | `notifyRejected()` | 申请类型、服务器名称、申请编号、驳回理由 |
+
+- 通知模块：`src/notify.js`，通过 `MAIL_WEBHOOK_URL` + `MAIL_WEBHOOK_TOKEN` 环境变量配置
+- Webhook 接口规范：`POST <url>`，Header `Authorization: Bearer <token>`，Body `{ channel, recipient, subject, body }`
+- 申请人邮箱从 `users.email` 查询，无邮箱的用户静默跳过
+- 通知为异步触发（不 await），发送失败仅打印日志，不影响审核操作本身
+- Webhook 未配置时 `sendMail()` 直接返回，不执行任何网络请求
+
 ## 会话认证全流程
 
 ### checkSession 中间件
@@ -206,10 +223,11 @@ ServerEditor/
 1. 用户访问 `/api/auth/callback?code=...&state=provider_id`
 2. 通过 state (provider ID) 查 `oidc` 表获取提供商配置
 3. 用 axios POST 向 `apipoint` 发送 `authorization_code` 换取 token
-4. `jwt.decode(id_token)` 获取 `sub` 和 `name`
-5. 新用户插入 `users` 表 (初始 perm 为提供商配置值或 1)
-6. 创建 Redis session，设置 cookie
-7. 重定向到 `frontend` URL 或 `/`
+4. `jwt.decode(id_token)` 获取 `sub`、`name`、`email`
+5. 新用户插入 `users` 表 (初始 perm 为提供商配置值或 1，email 来自 id_token)
+6. 已有用户登录时同步 `name` 和 `email`（仅当 OIDC 返回值与数据库不同时更新）
+7. 创建 Redis session，设置 cookie
+8. 重定向到 `frontend` URL 或 `/`
 
 ## 输入校验与安全防护
 
@@ -257,6 +275,8 @@ ServerEditor/
 | `DB_PORT` | `5432` | 数据库端口 |
 | `DB_NAME` | `serverlist` | 数据库名 |
 | `REDIS_URL` | `redis://localhost:6379` | Redis 地址 |
+| `MAIL_WEBHOOK_URL` | — | 邮件通知 Webhook 地址 (不设则禁用邮件通知) |
+| `MAIL_WEBHOOK_TOKEN` | — | 邮件通知 Webhook Bearer Token |
 
 ## 开发命令
 
