@@ -38,7 +38,8 @@ export async function dbinit()
     name text NOT NULL,
     perm integer NOT NULL DEFAULT 1,
     nowpd integer NOT NULL DEFAULT 0,
-    alpd integer NOT NULL DEFAULT 0
+    alpd integer NOT NULL DEFAULT 0,
+    email text
 );`);
     await db.query(`CREATE TABLE IF NOT EXISTS server_requests (
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -54,6 +55,8 @@ export async function dbinit()
     // 平滑迁移：为旧版 server 表补充后续新增的列，致敬Lynlan忘记创建列
     await db.query(`ALTER TABLE server ADD COLUMN IF NOT EXISTS userid text;`);
     await db.query(`ALTER TABLE server ADD COLUMN IF NOT EXISTS picture jsonb DEFAULT '[]'::jsonb;`);
+    // 平滑迁移：为 users 表添加 email 列（OIDC 登录时同步获取）
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email text;`);
     await db.query(`create table if not exists tags (
     name text not null PRIMARY KEY,
     tag text NOT NULL

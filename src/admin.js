@@ -1,6 +1,7 @@
 import express from "express";
 import {db,rd} from "./db.js";
 import { isValidPerm, isValidReqType, isValidTagName, validateServerUrls } from "./validate.js";
+import { notifyApproved, notifyRejected } from "./notify.js";
 export const admin_router = express.Router();
 admin_router.post("/user/edit", async(req, res) => {
     if(req.sessionPerm < 3) return res.status(403).send("Permission denied");
@@ -32,7 +33,7 @@ admin_router.get("/user/list", async(req, res) => {
     if(req.sessionPerm < 3) return res.status(403).send("Permission denied");
     try
     {
-        const result=await db.query("SELECT id,name,perm FROM users;");
+        const result=await db.query("SELECT id,name,perm,email FROM users;");
         res.json(result.rows);
     }
     catch(err)
@@ -260,10 +261,15 @@ admin_router.post("/request/approve", async(req, res) => {
         const request = existing[0];
         const data = request.data;
 
+        // 查询申请人邮箱用于通知
+        const requester = (await db.query("SELECT email FROM users WHERE id=$1;", [request.userid])).rows;
+        const requesterEmail = requester[0]?.email || null;
+
         if (request.req_type === 'delete') {
             // 删除是幂等操作，目标不存在也视为成功
             await db.query("DELETE FROM server WHERE uuid=$1;", [request.target_uuid]);
             await db.query("UPDATE server_requests SET status='approved', updated_at=now() WHERE id=$1;", [id]);
+            notifyApproved(requesterEmail, request);
             return res.send("Success");
         }
 
@@ -282,6 +288,7 @@ admin_router.post("/request/approve", async(req, res) => {
             await db.query(
                 "UPDATE server_requests SET status='approved', updated_at=now() WHERE id=$1;", [id]
             );
+            notifyApproved(requesterEmail, request);
             return res.json({ uuid: result.rows[0].uuid });
         } else {
             const result = await db.query(
@@ -295,6 +302,7 @@ admin_router.post("/request/approve", async(req, res) => {
             await db.query(
                 "UPDATE server_requests SET status='approved', updated_at=now() WHERE id=$1;", [id]
             );
+            notifyApproved(requesterEmail, request);
             return res.send("Success");
         }
     } catch(err) {
@@ -318,6 +326,10 @@ admin_router.post("/request/reject", async(req, res) => {
             "UPDATE server_requests SET status='rejected', reject_reason=$1, updated_at=now() WHERE id=$2;",
             [reason || null, id]
         );
+        // 查询申请人邮箱并发送驳回通知
+        const requester = (await db.query("SELECT email FROM users WHERE id=$1;", [existing[0].userid])).rows;
+        const requesterEmail = requester[0]?.email || null;
+        notifyRejected(requesterEmail, existing[0], reason || null);
         res.send("Success");
     } catch(err) {
         res.status(500).send(err.message);
