@@ -17,6 +17,7 @@
   "scripts": {
     "backend": "node src/index.js",
     "build": "cd frontend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
     "frontend": "cd frontend && npm run dev"
   }
 }

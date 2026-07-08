@@ -1,0 +1,30 @@
+# ============================================================
+# 前后端分离构建模式：
+#   - Dockerfile.backend  → 仅后端镜像（不含前端 dist）
+#   - Dockerfile.frontend → 仅前端镜像（Nginx 托管静态文件）
+# ============================================================
+
+# ---------- 后端镜像 ----------
+# 用法：docker build -f Dockerfile.backend -t serverlist-backend .
+# 运行时设置 FRONTEND_URL 环境变量指向前端地址以启用 CORS
+#   docker run -e FRONTEND_URL=https://frontend.example.com -p 8080:8080 serverlist-backend
+
+FROM node:20-alpine
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --omit=dev && \
+    npm cache clean --force && \
+    rm -rf /root/.npm /tmp/*
+
+COPY src/ ./src/
+
+RUN mkdir -p /app/data && chown -R node:node /app
+
+ENV NODE_ENV=production PORT=8080
+
+EXPOSE 8080
+
+USER node
+
+CMD ["node", "src/index.js"]

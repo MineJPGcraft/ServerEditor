@@ -277,6 +277,7 @@ ServerEditor/
 | `REDIS_URL` | `redis://localhost:6379` | Redis 地址 |
 | `MAIL_WEBHOOK_URL` | — | 邮件通知 Webhook 地址 (不设则禁用邮件通知) |
 | `MAIL_WEBHOOK_TOKEN` | — | 邮件通知 Webhook Bearer Token |
+| `FRONTEND_URL` | — | 前端地址（逗号分隔多个），设置后启用 CORS 跨域支持；为空时保持同源一体化行为 |
 
 ## 开发命令
 
@@ -287,3 +288,70 @@ npm run backend          # node src/index.js
 # 前端 (frontend/)
 npm run frontend         # cd frontend && npm run dev  → Vite :5173
 ```
+
+## 部署模式
+
+项目支持两种部署模式：**一体化部署**（默认）和**前后端分离部署**。
+
+### 一体化部署（默认）
+
+后端同时提供 API 和前端静态文件，与改造前行为完全一致。
+
+```bash
+# 构建前端
+cd frontend && npm run build
+# 启动后端（自动检测 dist/ 目录并托管）
+cd .. && npm run backend
+```
+
+Docker：
+```bash
+docker build -t serverlist .
+docker run -p 8080:8080 serverlist
+```
+
+### 前后端分离部署
+
+前端独立构建，通过环境变量 `VITE_API_BASE_URL` 指定后端地址；后端通过环境变量 `FRONTEND_URL` 指定前端地址以启用 CORS。
+
+```bash
+# 构建前端（指定后端 API 地址）
+cd frontend
+VITE_API_BASE_URL=https://api.example.com npm run build
+# 前端产物在 frontend/dist/，可部署到任意静态服务器
+
+# 启动后端（指定前端地址以启用 CORS 跨域支持）
+cd ..
+FRONTEND_URL=https://frontend.example.com npm run backend
+```
+
+Docker 分离部署：
+```bash
+# 后端镜像（不含前端）
+docker build -f Dockerfile.backend -t serverlist-backend .
+docker run -e FRONTEND_URL=https://frontend.example.com -p 8080:8080 serverlist-backend
+
+# 前端镜像（Nginx 托管，反向代理 /api 到后端）
+docker build --build-arg VITE_API_BASE_URL=https://api.example.com -f Dockerfile.frontend -t serverlist-frontend .
+docker run -e BACKEND_URL=http://backend:8080 -p 80:80 serverlist-frontend
+```
+
+### 环境变量
+
+| 变量 | 位置 | 默认值 | 说明 |
+|------|------|--------|------|
+| `FRONTEND_URL` | 后端 | 空（同源） | 前端地址，逗号分隔多个。设置后启用 CORS 跨域支持；为空时保持同源一体化行为 |
+| `VITE_API_BASE_URL` | 前端构建时 | 空（`/`） | 后端 API 地址。开发时留空走 Vite proxy；生产分离部署时设为后端完整 URL |
+| `BACKEND_URL` | 前端 Docker (Nginx) | `http://localhost:8080` | Nginx 反向代理 `/api` 的目标地址 |
+
+### 跨域 Cookie 说明
+
+分离部署时，后端会根据请求 `Origin` 自动调整 Cookie 策略：
+- **同源请求**（`FRONTEND_URL` 未设置）：`httpOnly: true`（默认）
+- **跨域请求**（`FRONTEND_URL` 已设置且 Origin 匹配）：`httpOnly: true, sameSite: 'none', secure: true`
+  - 要求后端必须通过 HTTPS 提供服务（`secure: true` 要求）
+  - 前端也必须通过 HTTPS 访问
+
+### OIDC 回调重定向
+
+OIDC 回调成功后的重定向优先级：`oidc.frontend` 字段 → `FRONTEND_URL` 环境变量 → `/`（同源根路径）
