@@ -21,9 +21,9 @@
 ```
 server-list/
 ├── src/
-│   ├── index.js          # 入口，路由挂载、公开 API、Redis 缓存
+│   ├── index.js          # 入口，路由挂载、公开 API、Redis 缓存、CORS 中间件、静态文件服务
 │   ├── admin.js          # 服务器 CRUD（无需审核）、所有权转移、用户管理、申请审核
-│   ├── auth.js           # 认证接口（Token / OIDC 回调）
+│   ├── auth.js           # 认证接口（Token / OIDC 回调）、Cookie 跨域适配
 │   ├── db.js             # 数据库初始化与平滑迁移
 │   ├── oidc-config.js    # OIDC 配置接口
 │   ├── request.js        # 用户申请 CRUD 接口
@@ -32,12 +32,18 @@ server-list/
 │   └── notify.js         # 邮件通知（Webhook 推送，审核通过/驳回时触发）
 ├── frontend/
 │   ├── src/
-│   │   ├── api/index.ts      # Axios 封装，所有 API 类型定义
+│   │   ├── api/index.ts      # Axios 封装，所有 API 类型定义（baseURL 支持 VITE_API_BASE_URL）
 │   │   ├── router/index.ts   # 路由 + 权限守卫
 │   │   ├── composables/      # useAuth, useServers, useTheme
 │   │   ├── views/            # 页面组件
 │   │   ├── components/       # 共享组件
 │   │   └── utils/validate.ts # 前端输入校验工具（与后端规则一致）
+│   ├── .env.example          # 前端环境变量示例
+│   └── vite.config.ts        # Vite 配置（proxy target 支持 VITE_API_BASE_URL）
+├── Dockerfile                # 一体化构建（后端 + 前端 dist）
+├── Dockerfile.backend        # 纯后端镜像（分离部署用）
+├── Dockerfile.frontend       # 纯前端镜像（Nginx 托管，分离部署用）
+├── nginx.conf.template       # 前端 Nginx 配置模板（/api 反向代理）
 └── package.json
 ```
 
@@ -211,6 +217,14 @@ server-list/
 | `REDIS_URL` | `redis://localhost:6379` | Redis 连接地址 |
 | `MAIL_WEBHOOK_URL` | 无 | 邮件通知 Webhook 地址（不设置则禁用邮件通知） |
 | `MAIL_WEBHOOK_TOKEN` | 无 | 邮件通知 Webhook Bearer Token |
+| `FRONTEND_URL` | 无 | 前端地址（逗号分隔多个），设置后启用 CORS 跨域支持；为空时保持同源一体化行为 |
+
+### 前端环境变量（构建时）
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `VITE_API_BASE_URL` | 空（`/`） | 后端 API 地址。开发时留空走 Vite proxy；生产分离部署时设为后端完整 URL（如 `https://api.example.com`） |
+| `BACKEND_URL` | `http://localhost:8080` | 仅前端 Docker (Nginx) 使用，Nginx 反向代理 `/api` 的目标地址 |
 
 ## 安全防护
 
@@ -243,22 +257,85 @@ server-list/
 
 校验覆盖所有写入服务器的入口：管理员直接 CRUD、用户申请创建/编辑、管理员审核通过。
 
-## Docker 部署
+## 部署
 
-### 手动 Docker
+项目支持两种部署模式：**一体化部署**（默认，后端同时提供前端）和**前后端分离部署**。
 
+### 一体化部署（默认）
+
+后端同时提供 API 和前端静态文件，行为与改造前完全一致。
+
+**手动构建：**
 ```bash
+# 构建前端
+cd frontend && npm run build && cd ..
+
+# 启动后端（自动检测 dist/ 目录并托管）
+npm run backend
+```
+
+**Docker：**
+```bash
+docker build -t serverlist .
 docker run -d \
   -p 8080:8080 \
   -e TOKEN=your_admin_token \
   -e DB_HOST=postgres-db \
   -e DB_PASSWORD=password \
   -e DB_NAME=serverlist \
-  -e MAIL_WEBHOOK_URL=http://localhost:8000/push \
-  -e MAIL_WEBHOOK_TOKEN=your-secret-token \
-  --link postgres-db:postgres-db \
-  ghcr.io/minejpgcraft/servereditor:latest
+  serverlist
 ```
+
+构建时可通过 `--build-arg VITE_API_BASE_URL` 传入后端地址（不传则前端使用相对路径 `/api`，适合同源一体化部署）：
+```bash
+docker build --build-arg VITE_API_BASE_URL=https://api.example.com -t serverlist .
+```
+
+### 前后端分离部署
+
+前端独立构建并部署到任意静态服务器或 Nginx，后端独立运行。通过环境变量实现跨域支持。
+
+**手动构建：**
+```bash
+# 构建前端（指定后端 API 地址）
+cd frontend
+VITE_API_BASE_URL=https://api.example.com npm run build
+# 前端产物在 frontend/dist/，部署到任意静态服务器
+
+# 启动后端（指定前端地址以启用 CORS）
+cd ..
+FRONTEND_URL=https://frontend.example.com npm run backend
+```
+
+**Docker 分离部署：**
+```bash
+# 后端镜像（不含前端）
+docker build -f Dockerfile.backend -t serverlist-backend .
+docker run -d \
+  -p 8080:8080 \
+  -e FRONTEND_URL=https://frontend.example.com \
+  -e DB_HOST=postgres-db \
+  -e DB_PASSWORD=password \
+  -e DB_NAME=serverlist \
+  serverlist-backend
+
+# 前端镜像（Nginx 托管，反向代理 /api 到后端）
+docker build --build-arg VITE_API_BASE_URL=https://api.example.com -f Dockerfile.frontend -t serverlist-frontend .
+docker run -d \
+  -p 80:80 \
+  -e BACKEND_URL=http://backend:8080 \
+  serverlist-frontend
+```
+
+> **跨域 Cookie 说明**：分离部署时，后端会根据请求 `Origin` 自动调整 Cookie 策略：
+> - 同源请求（`FRONTEND_URL` 未设置）：`httpOnly: true`（默认）
+> - 跨域请求（`FRONTEND_URL` 已设置且 Origin 匹配）：`httpOnly: true, sameSite: 'none', secure: true`
+>   - 要求后端通过 HTTPS 提供服务（`secure: true` 要求）
+>   - 前端也必须通过 HTTPS 访问
+
+### OIDC 回调重定向
+
+OIDC 回调成功后的重定向优先级：`oidc.frontend` 字段 → `FRONTEND_URL` 环境变量 → `/`（同源根路径）
 
 ## 交互式用户配置
 

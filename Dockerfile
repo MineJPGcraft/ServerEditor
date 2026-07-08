@@ -1,9 +1,16 @@
+# ============================================================
+# 一体化构建模式（默认）：后端同时提供前端静态文件
+# ============================================================
 # 阶段1：构建前端
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install && npm cache clean --force
 COPY frontend/ ./
+# 构建时可通过 --build-arg VITE_API_BASE_URL 传入后端地址
+# 不传则前端使用相对路径 /api（同源一体化部署）
+ARG VITE_API_BASE_URL=""
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build
 
 # 阶段2：最终镜像

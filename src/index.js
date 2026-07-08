@@ -15,6 +15,30 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.set('json spaces', 2);
 const port = process.env.PORT || 8080;
+
+// 前端地址（用于 CORS 跨域和 OIDC 回调默认重定向）
+// 不设置时保持同源一体化行为；设置后启用跨域支持（逗号分隔多个地址）
+const FRONTEND_URL = process.env.FRONTEND_URL || '';
+const allowedOrigins = FRONTEND_URL ? FRONTEND_URL.split(',').map(u => u.trim()).filter(Boolean) : [];
+
+// CORS 中间件：FRONTEND_URL 设置时允许前端跨域访问（带凭证）
+app.use((req, res, next) => {
+    if (allowedOrigins.length > 0) {
+        const origin = req.headers.origin;
+        if (origin && allowedOrigins.includes(origin)) {
+            res.header('Access-Control-Allow-Origin', origin);
+            res.header('Access-Control-Allow-Credentials', 'true');
+            res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+            res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+            res.header('Access-Control-Max-Age', '3600');
+        }
+    }
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+    next();
+});
+
 await dbinit();
 await rd.connect();
 if(!fs.existsSync("data")) {fs.mkdirSync("data");}
@@ -74,7 +98,8 @@ app.use('/api/admin',admin_router);
 app.use('/api/setup', setupRouter);
 app.use('/api/request',checkSession(1));
 app.use('/api/request',userRequestRouter);
-// 静态文件服务 - 提供前端构建文件
+// 静态文件服务 - 默认提供前端构建文件（一体化部署）
+// 如果 dist 目录不存在（前后端分离部署），非 API 路由返回 404
 const distPath = path.join(__dirname, '../dist');
 if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
@@ -83,7 +108,6 @@ if (fs.existsSync(distPath)) {
         res.sendFile(path.join(distPath, 'index.html'));
     });
 } else {
-    // 如果没有 dist 目录，返回 404
     app.use((req, res) => {
         res.status(404).send('Not found');
     });

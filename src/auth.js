@@ -3,7 +3,21 @@ import axios from "axios";
 import {db, rd} from "./db.js"
 import * as crypto from "node:crypto";
 import jwt from "jsonwebtoken";
+
 export const authRouter = express.Router();
+
+// 前端地址（跨域分离部署时用于 Cookie 设置和 OIDC 回调默认重定向）
+const FRONTEND_URL = process.env.FRONTEND_URL || '';
+const allowedOrigins = FRONTEND_URL ? FRONTEND_URL.split(',').map(u => u.trim()).filter(Boolean) : [];
+
+// 根据请求来源决定 Cookie 设置：跨域时需要 sameSite/secure，同源时保持默认
+function getCookieOptions(req) {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+        return { httpOnly: true, sameSite: 'none', secure: true };
+    }
+    return { httpOnly: true };
+}
 authRouter.get("/callback", async (req, res) => {
     if(!req.query.code||!req.query.state)
     {
@@ -77,9 +91,9 @@ authRouter.get("/callback", async (req, res) => {
         await rd.expire("session:"+session_id,86400);
         await rd.sAdd("user:"+json_info.sub,"session:"+session_id);
         await rd.expire("user:"+json_info.sub,864000);
-        res.cookie('session_id',session_id,{httpOnly:true});
+        res.cookie('session_id',session_id,getCookieOptions(req));
         client.query("COMMIT;");
-        return res.redirect(oidc_client[0].frontend||'/');
+        return res.redirect(oidc_client[0].frontend||FRONTEND_URL||'/');
     }
     catch(err)
     {
@@ -98,7 +112,7 @@ authRouter.post("/logout", async (req, res) => {
         // await db.query(`DELETE FROM session WHERE uuid=$1;`,[req.cookies.session_id]);
         await rd.del("session:"+req.cookies.session_id);
         await rd.sRem("user:"+req.sessionUserId,req.cookies.session_id);
-        res.clearCookie('session_id');
+        res.clearCookie('session_id', getCookieOptions(req));
         res.send("Success");
     }
     catch(err)
@@ -134,7 +148,7 @@ authRouter.post("/token", async (req, res) => {
         await rd.expire("session:"+session_id,86400);
         await rd.sAdd("user:token","session:"+session_id);
         await rd.expire("user:token",864000);
-        res.cookie('session_id',session_id,{httpOnly:true});
+        res.cookie('session_id',session_id,getCookieOptions(req));
         return res.send("Success");
     }
     catch(err)
